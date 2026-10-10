@@ -18,7 +18,7 @@ function maskMobile(mobile?: string): string {
 /**
  * 个人中心：客户端组件，通过 /api/auth/me（Route Handler）获取用户信息。
  * 不在 Server Component 里做 token 刷新 —— cookie 写入只允许发生在 Route Handler 中，
- * 自动续期由 /api/auth/me 内的 getValidAccessToken 完成。
+ * 自动续期由 /api/auth/me 内的 getValidSession 完成。
  */
 export default function ProfilePage() {
   const router = useRouter();
