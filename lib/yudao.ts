@@ -18,10 +18,10 @@ export class YudaoError extends Error {
   }
 }
 
-export async function yudaoRequest(
+export async function yudaoRequest<T = any>(
   path: string,
   options: { method?: string; body?: unknown; token?: string } = {}
-): Promise<any> {
+): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'tenant-id': YUDAO_TENANT_ID,
