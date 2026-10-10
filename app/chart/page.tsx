@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import BirthForm from '@/components/BirthForm';
 import ChartBoard from '@/components/ChartBoard';
+import ChatPanel from '@/components/ChatPanel';
 import InsightPanel from '@/components/InsightPanel';
 import TimeNav, { type TimeView } from '@/components/TimeNav';
 import { generateChart } from '@/lib/ziwei/algorithm';
@@ -11,10 +12,10 @@ import type { BirthInfo, ZiweiChart, Palace } from '@/lib/ziwei/types';
 /**
  * 命盘页 —— 开源版「排盘引擎 Demo」
  *
- * 这是一个最小可运行示例：用本仓库的排盘引擎 generateChart() 配合基础 UI
- * 组件，渲染一张完整紫微命盘 + 基础解读，并支持本命 / 大限 / 流年切换。
+ * 用本仓库的排盘引擎 generateChart() 配合基础 UI 组件，渲染一张完整紫微
+ * 命盘 + 基础解读，支持本命 / 大限 / 流年切换。
  *
- * 登录用户可保存命盘（存到个人中心，见 /profile）。
+ * 登录用户可保存命盘（存到个人中心）、使用 AI 对话解读（每轮消耗 1 次）。
  */
 export default function ChartPage() {
   const [chart, setChart] = useState<ZiweiChart | null>(null);
@@ -24,11 +25,8 @@ export default function ChartPage() {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
-  const [aiState, setAiState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
-  const [aiContent, setAiContent] = useState('');
-  const [aiMessage, setAiMessage] = useState('');
 
-  // 起盘后检查登录态，决定是否展示保存按钮
+  // 起盘后检查登录态，决定是否展示保存/AI 入口
   useEffect(() => {
     if (!chart) {
       setLoggedIn(null);
@@ -73,32 +71,6 @@ export default function ChartPage() {
     } catch {
       setSaveState('error');
       setSaveMessage('网络异常，请重试');
-    }
-  }, [chart]);
-
-  const handleAiInterpret = useCallback(async () => {
-    if (!chart) {
-      return;
-    }
-    setAiState('loading');
-    setAiMessage('');
-    try {
-      const res = await fetch('/api/ai/interpret', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chartData: JSON.stringify(chart) }),
-      });
-      const d = await res.json().catch(() => null);
-      if (res.ok && d?.content) {
-        setAiContent(d.content);
-        setAiState('done');
-        return;
-      }
-      setAiState('error');
-      setAiMessage(d?.message || (res.status === 401 ? '请先登录' : 'AI 解读失败，请重试'));
-    } catch {
-      setAiState('error');
-      setAiMessage('网络异常，请重试');
     }
   }, [chart]);
 
@@ -184,58 +156,36 @@ export default function ChartPage() {
           gap: 20, marginTop: 16, alignItems: 'start',
         }}
       >
-        <ChartBoard chart={chart} onPalaceSelect={setSelectedPalace} />
+        <div>
+          <ChartBoard chart={chart} onPalaceSelect={setSelectedPalace} />
+
+          {/* ── AI 对话解读（每轮消耗 1 次）── */}
+          <section style={{ marginTop: 32 }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+              <h2 style={{ fontSize: 18, fontWeight: 700 }}>AI 对话解读</h2>
+              <span style={{ fontSize: 12, color: '#888' }}>每次提问消耗 1 次 AI 解读次数</span>
+            </div>
+            {loggedIn ? (
+              <div style={{ height: 560 }}>
+                <ChatPanel chart={chart} />
+              </div>
+            ) : (
+              <div
+                style={{
+                  padding: 24, border: '1px dashed #ccc', borderRadius: 12,
+                  fontSize: 14, color: '#888', textAlign: 'center',
+                }}
+              >
+                <Link href="/login?next=/chart" style={{ color: '#111', textDecoration: 'underline' }}>
+                  登录
+                </Link>
+                后可与 AI 对话解读命盘（每轮消耗 1 次）
+              </div>
+            )}
+          </section>
+        </div>
         <InsightPanel chart={chart} selectedPalace={selectedPalace} />
       </div>
-
-      {/* ── AI 解读（消耗 1 次）── */}
-      <section style={{ marginTop: 32 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>AI 深度解读</h2>
-          {loggedIn ? (
-            <button
-              type="button"
-              onClick={handleAiInterpret}
-              disabled={aiState === 'loading'}
-              style={{
-                padding: '6px 14px', cursor: aiState === 'loading' ? 'wait' : 'pointer',
-                border: '1px solid #111', borderRadius: 8, background: '#111',
-                color: '#fff', fontSize: 14,
-              }}
-            >
-              {aiState === 'loading' ? 'AI 解读中…（约 10-30 秒）' : 'AI 解读（消耗 1 次）'}
-            </button>
-          ) : (
-            <span style={{ fontSize: 13, color: '#888' }}>
-              <Link href="/login?next=/chart" style={{ color: '#111', textDecoration: 'underline' }}>
-                登录
-              </Link>
-              后可使用 AI 深度解读
-            </span>
-          )}
-          {aiMessage && (
-            <span style={{ fontSize: 13, color: aiState === 'error' ? '#dc2626' : '#16a34a' }}>
-              {aiMessage === '请先登录' ? (
-                <Link href="/login?next=/chart" style={{ color: '#111', textDecoration: 'underline' }}>
-                  请先登录
-                </Link>
-              ) : (
-                aiMessage
-              )}
-            </span>
-          )}
-        </div>
-        {aiState === 'done' && aiContent && (
-          <div
-            style={{
-              marginTop: 12, padding: 20, background: '#fafaf7', border: '1px solid #e5e5e0',
-              borderRadius: 12, whiteSpace: 'pre-wrap', lineHeight: 1.8, fontSize: 14, color: '#333',
-            }}
-          >
-            {aiContent}
-          </div>
-        )}
-      </section>
     </main>
   );
 }

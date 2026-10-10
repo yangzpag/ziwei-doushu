@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import ChartBoard from '@/components/ChartBoard';
+import ChatPanel from '@/components/ChatPanel';
 import type { ZiweiChart } from '@/lib/ziwei/types';
 
 /**
@@ -112,6 +113,17 @@ export default function SavedChartPage() {
         </div>
       </div>
       <ChartBoard chart={chart} />
+
+      {/* ── AI 对话解读（每轮消耗 1 次）── */}
+      <section style={{ marginTop: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700 }}>AI 对话解读</h2>
+          <span style={{ fontSize: 12, color: '#888' }}>每次提问消耗 1 次 AI 解读次数</span>
+        </div>
+        <div style={{ height: 560 }}>
+          <ChatPanel chart={chart} />
+        </div>
+      </section>
     </main>
   );
 }
