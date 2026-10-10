@@ -24,6 +24,9 @@ export default function ChartPage() {
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
+  const [aiState, setAiState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [aiContent, setAiContent] = useState('');
+  const [aiMessage, setAiMessage] = useState('');
 
   // 起盘后检查登录态，决定是否展示保存按钮
   useEffect(() => {
@@ -70,6 +73,32 @@ export default function ChartPage() {
     } catch {
       setSaveState('error');
       setSaveMessage('网络异常，请重试');
+    }
+  }, [chart]);
+
+  const handleAiInterpret = useCallback(async () => {
+    if (!chart) {
+      return;
+    }
+    setAiState('loading');
+    setAiMessage('');
+    try {
+      const res = await fetch('/api/ai/interpret', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chartData: JSON.stringify(chart) }),
+      });
+      const d = await res.json().catch(() => null);
+      if (res.ok && d?.content) {
+        setAiContent(d.content);
+        setAiState('done');
+        return;
+      }
+      setAiState('error');
+      setAiMessage(d?.message || (res.status === 401 ? '请先登录' : 'AI 解读失败，请重试'));
+    } catch {
+      setAiState('error');
+      setAiMessage('网络异常，请重试');
     }
   }, [chart]);
 
@@ -158,6 +187,55 @@ export default function ChartPage() {
         <ChartBoard chart={chart} onPalaceSelect={setSelectedPalace} />
         <InsightPanel chart={chart} selectedPalace={selectedPalace} />
       </div>
+
+      {/* ── AI 解读（消耗 1 次）── */}
+      <section style={{ marginTop: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <h2 style={{ fontSize: 18, fontWeight: 700 }}>AI 深度解读</h2>
+          {loggedIn ? (
+            <button
+              type="button"
+              onClick={handleAiInterpret}
+              disabled={aiState === 'loading'}
+              style={{
+                padding: '6px 14px', cursor: aiState === 'loading' ? 'wait' : 'pointer',
+                border: '1px solid #111', borderRadius: 8, background: '#111',
+                color: '#fff', fontSize: 14,
+              }}
+            >
+              {aiState === 'loading' ? 'AI 解读中…（约 10-30 秒）' : 'AI 解读（消耗 1 次）'}
+            </button>
+          ) : (
+            <span style={{ fontSize: 13, color: '#888' }}>
+              <Link href="/login?next=/chart" style={{ color: '#111', textDecoration: 'underline' }}>
+                登录
+              </Link>
+              后可使用 AI 深度解读
+            </span>
+          )}
+          {aiMessage && (
+            <span style={{ fontSize: 13, color: aiState === 'error' ? '#dc2626' : '#16a34a' }}>
+              {aiMessage === '请先登录' ? (
+                <Link href="/login?next=/chart" style={{ color: '#111', textDecoration: 'underline' }}>
+                  请先登录
+                </Link>
+              ) : (
+                aiMessage
+              )}
+            </span>
+          )}
+        </div>
+        {aiState === 'done' && aiContent && (
+          <div
+            style={{
+              marginTop: 12, padding: 20, background: '#fafaf7', border: '1px solid #e5e5e0',
+              borderRadius: 12, whiteSpace: 'pre-wrap', lineHeight: 1.8, fontSize: 14, color: '#333',
+            }}
+          >
+            {aiContent}
+          </div>
+        )}
+      </section>
     </main>
   );
 }
