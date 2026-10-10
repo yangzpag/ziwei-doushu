@@ -35,6 +35,7 @@ export async function yudaoRequest(
     headers,
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
     cache: 'no-store',
+    signal: AbortSignal.timeout(10_000), // 上游 10s 超时，避免请求无限挂起
   });
   const json = await res.json();
   if (json.code !== 0) {

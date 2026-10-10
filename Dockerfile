@@ -8,12 +8,13 @@ COPY . .
 RUN mkdir -p public
 RUN npm run build
 
-# 运行阶段：只带 standalone 产物，镜像体积小
+# 运行阶段：只带 standalone 产物，镜像体积小；以非 root 的 node 用户运行
 FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production TZ=Asia/Shanghai NEXT_TELEMETRY_DISABLED=1
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
-COPY --from=builder /app/public ./public
+COPY --chown=node:node --from=builder /app/.next/standalone ./
+COPY --chown=node:node --from=builder /app/.next/static ./.next/static
+COPY --chown=node:node --from=builder /app/public ./public
 EXPOSE 3000
+USER node
 CMD ["node", "server.js"]

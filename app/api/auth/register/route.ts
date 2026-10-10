@@ -4,13 +4,16 @@ import { setAuthCookies } from '@/lib/auth';
 
 // 注册（手机号+密码，注册即登录）
 export async function POST(req: NextRequest) {
-  let body: { mobile?: string; password?: string };
+  let body: unknown;
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ message: '请求格式错误' }, { status: 400 });
   }
-  const { mobile, password } = body;
+  if (typeof body !== 'object' || body === null) {
+    return NextResponse.json({ message: '请求格式错误' }, { status: 400 });
+  }
+  const { mobile, password } = body as { mobile?: string; password?: string };
   if (!mobile || !password) {
     return NextResponse.json({ message: '请输入手机号和密码' }, { status: 400 });
   }

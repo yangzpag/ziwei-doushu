@@ -48,6 +48,8 @@ export async function clearAuthCookies(): Promise<void> {
 }
 
 // 获取有效 accessToken：过期则用 refreshToken 自动续期并更新 cookie
+// ⚠️ 只能在 Route Handler / Server Function 中调用（内部会写 cookie，
+//    Server Component 渲染期间调用会抛错）——页面需要会话时请走 /api/auth/me
 export async function getValidAccessToken(): Promise<string | null> {
   const auth = await getAuth();
   if (!auth) {
