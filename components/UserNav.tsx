@@ -2,16 +2,26 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 /**
- * 全站右上角的用户入口：
+ * 用户入口（登录态感知）：
  * - 未登录 → 「登录 / 注册」
- * - 已登录 → 「个人中心」（含 AI 次数余额）
- * 各页面保持免登录可浏览，此入口保证账号体系可被发现。
+ * - 已登录 → 「个人中心」（含 AI 次数余额徽标）
+ *
+ * variant：
+ * - 'float'（默认）：fixed 右上角悬浮，用于无自带导航的页面；首页（有自带 nav）自动不渲染
+ * - 'inline'：内联胶囊，嵌入页面自带导航条（首页），style 可传入页面色板
  */
-export default function UserNav() {
+export default function UserNav({
+  variant = 'float',
+  style,
+}: {
+  variant?: 'float' | 'inline';
+  style?: React.CSSProperties;
+}) {
+  const pathname = usePathname();
   const [state, setState] = useState<'loading' | 'guest' | 'user'>('loading');
-  const [nickname, setNickname] = useState('');
   const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
@@ -19,63 +29,71 @@ export default function UserNav() {
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (d?.user) {
-          setNickname(d.user.nickname || '我的');
-          setLoggedIn();
+          setState('user');
+          fetch('/api/ziwei/points', { cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((d2) => setBalance(typeof d2?.balance === 'number' ? d2.balance : null))
+            .catch(() => setBalance(null));
         } else {
           setState('guest');
         }
       })
       .catch(() => setState('guest'));
+  }, [pathname]);
 
-    function setLoggedIn() {
-      setState('user');
-      fetch('/api/ziwei/points', { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => setBalance(typeof d?.balance === 'number' ? d.balance : null))
-        .catch(() => setBalance(null));
-    }
-  }, []);
-
-  const pillStyle: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: 6,
-    padding: '6px 14px',
-    borderRadius: 999,
-    fontSize: 13,
-    textDecoration: 'none',
-    background: 'rgba(0,0,0,0.35)',
-    backdropFilter: 'blur(8px)',
-    border: '1px solid rgba(255,255,255,0.25)',
-    color: '#fff',
-  };
-
+  // 首页有自带导航条，由页面内渲染 inline 版，悬浮版跳过（避免重叠）
+  if (variant === 'float' && pathname === '/') {
+    return null;
+  }
   if (state === 'loading') {
     return null;
   }
 
+  const baseStyle: React.CSSProperties =
+    variant === 'float'
+      ? {
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 14px',
+          borderRadius: 999,
+          fontSize: 13,
+          textDecoration: 'none',
+          background: 'rgba(0,0,0,0.35)',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.25)',
+          color: '#fff',
+        }
+      : {
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 14px',
+          borderRadius: 999,
+          fontSize: '11px',
+          textDecoration: 'none',
+          background: 'transparent',
+          border: '1px solid currentColor',
+          color: 'inherit',
+          opacity: 0.9,
+          ...style,
+        };
+
+  const badgeStyle: React.CSSProperties =
+    variant === 'float'
+      ? { background: 'rgba(255,255,255,0.2)', borderRadius: 999, padding: '1px 8px', fontSize: 12 }
+      : { borderRadius: 999, padding: '0 8px', fontSize: 11, background: 'rgba(127,127,127,0.15)' };
+
   return (
-    <div style={{ position: 'fixed', top: 16, right: 16, zIndex: 100 }}>
+    <div style={variant === 'float' ? { position: 'fixed', top: 16, right: 16, zIndex: 100 } : undefined}>
       {state === 'guest' ? (
-        <Link href="/login" style={pillStyle}>
+        <Link href="/login" style={baseStyle}>
           登录 / 注册
         </Link>
       ) : (
-        <Link href="/profile" style={pillStyle}>
-          <span>⭐</span>
+        <Link href="/profile" style={baseStyle}>
           <span>个人中心</span>
-          {balance !== null && (
-            <span
-              style={{
-                background: 'rgba(255,255,255,0.2)',
-                borderRadius: 999,
-                padding: '1px 8px',
-                fontSize: 12,
-              }}
-            >
-              {balance}
-            </span>
-          )}
+          {balance !== null && <span style={badgeStyle}>{balance}</span>}
         </Link>
       )}
     </div>

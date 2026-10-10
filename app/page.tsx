@@ -5,6 +5,7 @@ import { motion, useScroll, useTransform, useInView, AnimatePresence } from 'fra
 import StarField from '@/components/StarField';
 import { useTheme, type Theme } from '@/components/ThemeProvider';
 import AnnouncementModal from '@/components/AnnouncementModal';
+import UserNav from '@/components/UserNav';
 
 // ─── 滚动入场 wrapper ────────────────────────────────────
 function FadeIn({
@@ -489,6 +490,7 @@ export default function HomePage() {
           紫微命盘
         </div>
         <div className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
+          <UserNav variant="inline" style={{ border: `1px solid ${c.navBorder}`, color: c.textMuted }} />
           <ThemeToggle />
           <motion.button
             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.97 }}
