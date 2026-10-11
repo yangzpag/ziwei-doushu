@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import ChartBoard from '@/components/ChartBoard';
-import ChatPanel from '@/components/ChatPanel';
+import TopBar from '@/components/v2/TopBar';
+import ChartGridV2 from '@/components/v2/ChartGridV2';
+import AiSidePanel from '@/components/v2/AiSidePanel';
 import type { ZiweiChart } from '@/lib/ziwei/types';
+import s from '@/components/v2/v2.module.css';
 
 /**
- * 保存的命盘回放页：从 BFF 取回存储的排盘 JSON，反序列化后用 ChartBoard 渲染。
+ * 保存的命盘回放页（V2）：存储 JSON 反序列化 → 六层命盘 + AI 常驻侧栏。
  */
 export default function SavedChartPage() {
   const params = useParams<{ id: string }>();
@@ -16,6 +18,7 @@ export default function SavedChartPage() {
   const [chart, setChart] = useState<ZiweiChart | null>(null);
   const [name, setName] = useState('');
   const [state, setState] = useState<'loading' | 'ready' | 'error' | 'notfound'>('loading');
+  const [chatCollapsed, setChatCollapsed] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -42,9 +45,7 @@ export default function SavedChartPage() {
   }, [load]);
 
   async function onDelete() {
-    if (!confirm('确定删除该命盘？')) {
-      return;
-    }
+    if (!confirm('确定删除该命盘？')) return;
     const res = await fetch(`/api/ziwei/chart/${params.id}`, { method: 'DELETE' });
     if (res.ok) {
       router.push('/profile');
@@ -55,14 +56,22 @@ export default function SavedChartPage() {
   }
 
   if (state === 'loading') {
-    return <div className="mx-auto mt-16 max-w-md px-4 text-center text-slate-400">加载中…</div>;
+    return (
+      <div className={s.v2body}>
+        <TopBar active="chart" />
+        <div className={s.wrap} style={{ marginTop: 60, textAlign: 'center', color: 'var(--zw2-muted)' }}>
+          加载中…
+        </div>
+      </div>
+    );
   }
   if (state === 'notfound') {
     return (
-      <div className="mx-auto mt-16 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600 shadow-sm">
-        命盘不存在或已删除。
-        <div className="mt-4">
-          <Link href="/profile" className="text-slate-900 underline underline-offset-2">
+      <div className={s.v2body}>
+        <TopBar active="chart" />
+        <div className={s.wrap} style={{ marginTop: 60, textAlign: 'center' }}>
+          <p style={{ color: 'var(--zw2-ink2)' }}>命盘不存在或已删除。</p>
+          <Link href="/profile" style={{ color: 'var(--zw2-gold-deep)', textDecoration: 'underline' }}>
             返回个人中心
           </Link>
         </div>
@@ -71,14 +80,11 @@ export default function SavedChartPage() {
   }
   if (state === 'error' || !chart) {
     return (
-      <div className="mx-auto mt-16 max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600 shadow-sm">
-        加载失败，请稍后重试。
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={load}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white hover:opacity-90"
-          >
+      <div className={s.v2body}>
+        <TopBar active="chart" />
+        <div className={s.wrap} style={{ marginTop: 60, textAlign: 'center' }}>
+          <p style={{ color: 'var(--zw2-ink2)' }}>加载失败，请稍后重试。</p>
+          <button type="button" className={`${s.btn} ${s.btnGhost}`} style={{ marginTop: 12 }} onClick={load}>
             重试
           </button>
         </div>
@@ -87,43 +93,34 @@ export default function SavedChartPage() {
   }
 
   return (
-    <main style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700 }}>{name}</h1>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            type="button"
-            onClick={onDelete}
-            style={{
-              padding: '6px 14px', border: '1px solid #fca5a5', borderRadius: 8,
-              background: 'transparent', color: '#dc2626', fontSize: 14, cursor: 'pointer',
-            }}
-          >
-            删除
-          </button>
-          <Link
-            href="/profile"
-            style={{
-              padding: '6px 14px', border: '1px solid #ccc', borderRadius: 8,
-              background: 'transparent', textDecoration: 'none', color: '#333', fontSize: 14,
-            }}
-          >
-            ← 返回个人中心
-          </Link>
+    <div className={s.v2body}>
+      <TopBar active="chart" />
+      <div className={s.wrapWide}>
+        <div className={s.crumbBar}>
+          <div className={s.crumb}>
+            <Link href="/profile">个人中心</Link> ／ <b>命盘 · {name}</b>
+            <span style={{ color: '#B8AE9C' }}>
+              （{chart.yinYangGender ?? ''} · {chart.wuxingJuName}）
+            </span>
+          </div>
+          <div className={s.acts}>
+            <button type="button" className={`${s.btn} ${s.btnDanger}`} onClick={onDelete}>
+              删除命盘
+            </button>
+          </div>
         </div>
-      </div>
-      <ChartBoard chart={chart} />
 
-      {/* ── AI 对话解读（每轮消耗 1 次）── */}
-      <section style={{ marginTop: 32 }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 12 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>AI 对话解读</h2>
-          <span style={{ fontSize: 12, color: '#888' }}>每次提问消耗 1 次 AI 解读次数</span>
+        <div className={`${s.main} ${chatCollapsed ? s.mainCollapsed : ''}`}>
+          <ChartGridV2 chart={chart} />
+          <AiSidePanel chart={chart} collapsed={chatCollapsed} onCollapse={() => setChatCollapsed(true)} />
         </div>
-        <div style={{ height: 560 }}>
-          <ChatPanel chart={chart} />
-        </div>
-      </section>
-    </main>
+
+        {chatCollapsed && (
+          <button type="button" className={s.chatFab} onClick={() => setChatCollapsed(false)}>
+            ‹ AI 解读
+          </button>
+        )}
+      </div>
+    </div>
   );
 }

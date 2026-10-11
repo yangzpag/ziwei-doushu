@@ -1,0 +1,15 @@
+/* ===== V2 亮色宣纸设计系统（来自用户设计稿）===== */
+:root {
+  --zw2-bg: #F6F2E8;
+  --zw2-panel: #FFFCF5;
+  --zw2-panel2: #FBF7EC;
+  --zw2-ink: #2F2A22;
+  --zw2-ink2: #6B6355;
+  --zw2-muted: #9A9184;
+  --zw2-line: rgba(93, 74, 40, 0.14);
+  --zw2-line2: rgba(93, 74, 40, 0.28);
+  --zw2-gold: #9C7A2E;
+  --zw2-gold-deep: #6E5320;
+  --zw2-gold-soft: #F3E9D2;
+  --zw2-serif: "Noto Serif SC", "Songti SC", "STSong", "SimSun", serif;
+}

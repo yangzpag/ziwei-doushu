@@ -24,6 +24,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setMounted(true);
     const saved = localStorage.getItem('ziwei-theme') as Theme | null;
     if (saved === 'light' || saved === 'dark') setTheme(saved);
+    else setTheme('light'); // SSR 初始值为 dark（服务端无 document），补齐为与 layout 脚本一致的默认亮色
   }, []);
 
   useEffect(() => {

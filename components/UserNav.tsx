@@ -41,8 +41,11 @@ export default function UserNav({
       .catch(() => setState('guest'));
   }, [pathname]);
 
-  // 首页有自带导航条，由页面内渲染 inline 版，悬浮版跳过（避免重叠）
-  if (variant === 'float' && pathname === '/') {
+  // 首页 / 排盘结果页 / 命盘回放页使用 V2 TopBar（自带用户入口），悬浮版跳过（避免重叠）
+  if (
+    variant === 'float' &&
+    (pathname === '/' || pathname === '/chart' || pathname.startsWith('/profile/charts'))
+  ) {
     return null;
   }
   if (state === 'loading') {
