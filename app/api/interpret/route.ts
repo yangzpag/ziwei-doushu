@@ -118,9 +118,10 @@ export async function POST(req: Request) {
     const apiStream = new ReadableStream<Uint8Array>({
       start(controller) {
         let refunded = false;
-        const refund = async (reason: string) => {
+        // 返回是否退款成功；失败时调用方不得向用户谎报"已退还"
+        const refund = async (reason: string): Promise<boolean> => {
           if (refunded) {
-            return;
+            return true;
           }
           refunded = true;
           try {
@@ -130,8 +131,10 @@ export async function POST(req: Request) {
               headers: { 'X-Internal-Key': internalKey },
               body: { userId: user.id, bizNo, remark: reason },
             });
+            return true;
           } catch (e) {
             console.error('[ai chat] refund failed:', e); // 退款失败需人工关注
+            return false;
           }
         };
 
@@ -144,18 +147,40 @@ export async function POST(req: Request) {
         });
         stream.on('error', (e) => {
           console.error('[ai chat] stream error, refunding:', e);
-          void refund('AI 对话中断自动退款');
-          try {
-            controller.enqueue(sseEvent('\n\n（解读中断，次数已退还，请重试）'));
-            controller.enqueue(SSE_DONE);
-            controller.close();
-          } catch {
-            // 已关闭
-          }
+          void refund('AI 对话中断自动退款').then((ok) => {
+            try {
+              controller.enqueue(
+                sseEvent(ok ? '\n\n（解读中断，次数已退还，请重试）' : '\n\n（解读中断，次数退还失败，请联系客服处理）')
+              );
+              controller.enqueue(SSE_DONE);
+              controller.close();
+            } catch {
+              // 已关闭
+            }
+          });
         });
         stream.finalMessage()
-          .then(() => {
+          .then((finalMsg) => {
             try {
+              // 无任何 text 输出（如 max_tokens 被思考耗尽）视为失败：退款
+              const hasText = finalMsg.content.some(
+                (b): b is Anthropic.TextBlock => b.type === 'text' && b.text.trim().length > 0
+              );
+              if (!hasText) {
+                console.error('[ai chat] empty output, refunding');
+                void refund('AI 输出为空自动退款').then((ok) => {
+                  try {
+                    controller.enqueue(
+                      sseEvent(ok ? '\n\n（解读失败，次数已退还，请重试）' : '\n\n（解读失败，次数退还失败，请联系客服处理）')
+                    );
+                    controller.enqueue(SSE_DONE);
+                    controller.close();
+                  } catch {
+                    // 已关闭
+                  }
+                });
+                return;
+              }
               controller.enqueue(SSE_DONE);
               controller.close();
             } catch {
@@ -164,15 +189,21 @@ export async function POST(req: Request) {
           })
           .catch(async (e) => {
             console.error('[ai chat] finalMessage error, refunding:', e);
-            await refund('AI 对话失败自动退款');
+            const ok = await refund('AI 对话失败自动退款');
             try {
-              controller.enqueue(sseEvent('\n\n（解读失败，次数已退还，请重试）'));
+              controller.enqueue(
+                sseEvent(ok ? '\n\n（解读失败，次数已退还，请重试）' : '\n\n（解读失败，次数退还失败，请联系客服处理）')
+              );
               controller.enqueue(SSE_DONE);
               controller.close();
             } catch {
               // 已关闭
             }
           });
+      },
+      // 客户端断开（关页面/停止生成）时中断上游流：finalMessage 会 reject → 复用退款路径
+      cancel() {
+        stream.abort();
       },
     });
 

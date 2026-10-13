@@ -22,10 +22,11 @@ export async function requireSessionToken(): Promise<
   return { token: session.token };
 }
 
-/** 把 yudaoRequest 的异常转成对前端的响应（业务错误透传 message） */
+/** 把 yudaoRequest 的异常转成对前端的响应（业务错误透传 message；401 保持 401 语义，前端引导登录） */
 export function yudaoErrorToResponse(e: unknown): NextResponse {
   if (e instanceof YudaoError) {
-    return NextResponse.json({ message: e.message, code: e.code }, { status: 400 });
+    const status = e.code === 401 ? 401 : 400;
+    return NextResponse.json({ message: e.message, code: e.code }, { status });
   }
   console.error('[ziwei api] upstream error:', e);
   return NextResponse.json({ message: '服务暂不可用，请稍后重试' }, { status: 503 });

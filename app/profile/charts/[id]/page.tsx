@@ -23,6 +23,11 @@ export default function SavedChartPage() {
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/ziwei/chart/${params.id}`, { cache: 'no-store' });
+      if (res.status === 401) {
+        // 会话失效：去登录后回到本页
+        router.replace(`/login?next=/profile/charts/${params.id}`);
+        return;
+      }
       if (res.status === 400) {
         setState('notfound');
         return;
@@ -38,7 +43,7 @@ export default function SavedChartPage() {
     } catch {
       setState('error');
     }
-  }, [params.id]);
+  }, [params.id, router]);
 
   useEffect(() => {
     load();
