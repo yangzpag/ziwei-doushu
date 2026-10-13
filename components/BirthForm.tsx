@@ -27,6 +27,8 @@ interface BirthFormProps {
   onFormSave?: (data: BirthFormState) => void;
   /** 隐藏内部「立即起盘」按钮（合盘等场景由父级统一触发） */
   hideSubmit?: boolean;
+  /** 强制色调：'light' 跳过主题检测固定亮色（V2 亮色宣纸页面用），默认跟随主题 */
+  tone?: 'auto' | 'light';
 }
 
 const SHICHEN_NAMES = ['子', '丑', '寅', '卯', '辰', '巳', '午', '未', '申', '酉', '戌', '亥'];
@@ -47,9 +49,9 @@ function isValidDate(y: number, m: number, d: number): boolean {
   return date.getFullYear() === y && date.getMonth() === m - 1 && date.getDate() === d;
 }
 
-export default function BirthForm({ onSubmit, loading, initialData, onFormSave, hideSubmit }: BirthFormProps) {
+export default function BirthForm({ onSubmit, loading, initialData, onFormSave, hideSubmit, tone = 'auto' }: BirthFormProps) {
   const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const isDark = tone === 'light' ? false : theme === 'dark';
 
   const [form, setForm] = useState<BirthFormState>({
     name: initialData?.name ?? '',

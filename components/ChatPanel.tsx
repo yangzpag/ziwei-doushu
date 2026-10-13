@@ -48,7 +48,10 @@ export default function ChatPanel({ chart }: ChatPanelProps) {
       });
 
       if (res.status === 404) throw new Error('api-missing');
-      if (!res.ok) throw new Error('请求失败');
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.message || '请求失败');
+      }
       if (!res.body) throw new Error('无响应流');
 
       const reader = res.body.getReader();
@@ -83,7 +86,8 @@ export default function ChatPanel({ chart }: ChatPanelProps) {
       const missing = e instanceof Error && e.message === 'api-missing';
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: missing ? '开源版不含 AI 解读接口（/api/interpret），需要你自己实现后才能用，详见 README「快速开始」。排盘本身不需要任何 API Key。' : '解读失败，请检查API配置或稍后重试。',
+        content: missing ? '开源版不含 AI 解读接口（/api/interpret），需要你自己实现后才能用，详见 README「快速开始」。排盘本身不需要任何 API Key。'
+          : (e instanceof Error && e.message && e.message !== 'Failed to fetch' ? e.message : '解读失败，请稍后重试。'),
       }]);
     } finally {
       setLoading(false);
