@@ -86,8 +86,9 @@ export function computeLayers(chart: ZiweiChart, date: Date): SixLayers {
     : null;
 
   // ── 流年 ──
-  const nianStemIdx = getYearStemIndex(date.getFullYear());
-  const nianBranchIdx = mod12(date.getFullYear() - 4); // 4=甲子年
+  // 流年以农历年（正月初一换年），不用公历年
+  const nianStemIdx = getYearStemIndex(lunarYear);
+  const nianBranchIdx = mod12(lunarYear - 4); // 4=甲子年
   const liunian: LayerInfo = {
     anchorBranch: nianBranchIdx,
     ganzhi: `${STEMS[nianStemIdx]}${BRANCHES[nianBranchIdx]}`,
@@ -117,9 +118,10 @@ export function computeLayers(chart: ZiweiChart, date: Date): SixLayers {
     overlay: riGanIdx >= 0 ? buildStarSiHuaMap(riGanIdx) : {},
   };
 
-  // ── 流时：流日宫起子时顺数至生时支 ──
-  const shiBranchIdx = hourBranchIdx;
-  const shiStemIdx = hourStemIndex(riGanIdx, shiBranchIdx);
+  // ── 流时：流日宫起子时，顺数至当前时辰（23:00 起子时） ──
+  const curHourBranch = Math.floor((date.getHours() + 1) / 2) % 12;
+  const shiBranchIdx = mod12(riBranchIdx + curHourBranch);
+  const shiStemIdx = hourStemIndex(riGanIdx, curHourBranch);
   const liushi: LayerInfo = {
     anchorBranch: shiBranchIdx,
     ganzhi: `${STEMS[shiStemIdx]}${BRANCHES[shiBranchIdx]}`,

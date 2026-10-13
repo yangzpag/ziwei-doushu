@@ -21,10 +21,11 @@ export default function UserNav({
   style?: React.CSSProperties;
 }) {
   const pathname = usePathname();
-  const [state, setState] = useState<'loading' | 'guest' | 'user'>('loading');
+  const [state, setState] = useState<'loading' | 'guest' | 'user' | 'error'>('loading');
   const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
+    setState('loading');
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
@@ -38,7 +39,7 @@ export default function UserNav({
           setState('guest');
         }
       })
-      .catch(() => setState('guest'));
+      .catch(() => setState('error')); // 上游抖动 ≠ 游客：隐藏入口（路由切换时重试），不误导已登录用户
   }, [pathname]);
 
   // 首页 / 排盘结果页 / 命盘回放页使用 V2 TopBar（自带用户入口），悬浮版跳过（避免重叠）
@@ -48,7 +49,7 @@ export default function UserNav({
   ) {
     return null;
   }
-  if (state === 'loading') {
+  if (state === 'loading' || state === 'error') {
     return null;
   }
 

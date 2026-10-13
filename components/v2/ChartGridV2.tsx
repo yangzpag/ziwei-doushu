@@ -60,6 +60,10 @@ export default function ChartGridV2({ chart }: { chart: ZiweiChart }) {
 
   // 六层宫名叠加 + 底色
   const cellStyle = (p: number): React.CSSProperties | undefined => {
+    // 三方四正高亮（选中反馈优先于六层底色）：选中宫深蓝、三合与对宫浅蓝
+    if (sanFang.includes(p)) {
+      return { background: p === selectedBranch ? '#DCE8F8' : '#EEF4FC' };
+    }
     let bg = '';
     for (let i = 0; i <= activeIdx; i++) {
       const L = layerList[i];
@@ -247,13 +251,22 @@ export default function ChartGridV2({ chart }: { chart: ZiweiChart }) {
       </div>
 
       {/* 六层 tabs */}
-      <div className={s.layTabs}>
+      <div className={s.layTabs} role="tablist">
         {LAYER_META.map((meta, i) => (
           <span
             key={meta.key}
+            role="tab"
+            tabIndex={0}
+            aria-selected={activeIdx === i}
             className={activeIdx === i ? s.layOn : ''}
-            style={{ ['--lc' as string]: meta.color }}
+            style={{ ['--lc' as string]: meta.color, cursor: 'pointer' }}
             onClick={() => setActiveIdx(i)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setActiveIdx(i);
+              }
+            }}
           >
             <i style={{ background: meta.color }} />
             {meta.label}

@@ -98,7 +98,11 @@ export default function TopBar({ active = 'chart' }: { active?: 'chart' | 'tcm' 
                     style={{ color: '#A3543C' }}
                     onClick={(e) => {
                       e.preventDefault();
-                      fetch('/api/auth/logout', { method: 'POST' }).then(() => router.push('/'));
+                      fetch('/api/auth/logout', { method: 'POST' }).then(() => {
+                        // 登出后刷新服务端组件与自身登录态，避免头像/入口仍显示已登录
+                        router.push('/');
+                        router.refresh();
+                      });
                     }}
                   >
                     退出登录
