@@ -124,7 +124,9 @@ export function computeLayers(chart: ZiweiChart, date: Date): SixLayers {
   const shiStemIdx = hourStemIndex(riGanIdx, curHourBranch);
   const liushi: LayerInfo = {
     anchorBranch: shiBranchIdx,
-    ganzhi: `${STEMS[shiStemIdx]}${BRANCHES[shiBranchIdx]}`,
+    // 干支标签用真实时辰支（curHourBranch），不能用宫位支 shiBranchIdx
+    //（流日宫非命宫锚点时二者不同，如子时+流日宫=丑宫会误显示为丑时）
+    ganzhi: `${STEMS[shiStemIdx]}${BRANCHES[curHourBranch]}`,
     overlay: buildStarSiHuaMap(shiStemIdx),
   };
 
