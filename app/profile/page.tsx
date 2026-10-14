@@ -32,6 +32,7 @@ export default function ProfilePage() {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [balance, setBalance] = useState<number | null>(null);
   const [charts, setCharts] = useState<ChartSummary[] | null>(null);
+  const [chartsError, setChartsError] = useState(false);
 
   const load = useCallback(async () => {
     setState('loading');
@@ -54,9 +55,15 @@ export default function ProfilePage() {
         .then((d) => setBalance(typeof d?.balance === 'number' ? d.balance : -1))
         .catch(() => setBalance(-1));
       fetch('/api/ziwei/chart?pageNo=1&pageSize=20', { cache: 'no-store' })
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d) => setCharts(d && Array.isArray(d.list) ? d.list : null))
-        .catch(() => setCharts(null));
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
+        .then((d) => {
+          setCharts(d && Array.isArray(d.list) ? d.list : []);
+          setChartsError(false);
+        })
+        .catch(() => {
+          setCharts(null);
+          setChartsError(true); // 加载失败要有重试入口，不能停在"加载中…"
+        });
     } catch {
       setState('error');
     }
@@ -129,7 +136,18 @@ export default function ProfilePage() {
       </div>
 
       <h2 className="mb-3 mt-8 text-base font-semibold text-slate-900">我的命盘</h2>
-      {charts === null ? (
+      {chartsError ? (
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-500">
+          命盘列表加载失败。
+          <button
+            type="button"
+            onClick={load}
+            className="ml-1 text-slate-900 underline underline-offset-2"
+          >
+            重试
+          </button>
+        </div>
+      ) : charts === null ? (
         <p className="text-sm text-slate-400">加载中…</p>
       ) : charts.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-sm text-slate-500">

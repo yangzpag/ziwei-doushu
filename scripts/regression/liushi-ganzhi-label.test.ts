@@ -13,6 +13,7 @@ const layers = computeLayers(chart, new Date(2026, 5, 15, 14, 0));
 const liushi = layers.liushi;
 const hourBranch = BRANCHES[Math.floor((14 + 1) / 2) % 12]; // 未
 
+assert.ok(liushi.ganzhi, '流时干支标签不应为空');
 assert.ok(
   liushi.ganzhi.endsWith(hourBranch),
   `流时干支标签应以当前时辰支「${hourBranch}」结尾，实际为「${liushi.ganzhi}」——` +

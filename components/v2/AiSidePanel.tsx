@@ -35,6 +35,12 @@ export default function AiSidePanel({
     }
   }, [messages]);
 
+  // 命盘切换（重新起盘/打开新盘）时清空旧对话，避免旧解读被误认为新盘的分析
+  useEffect(() => {
+    setMessages([]);
+    setLoading(false);
+  }, [chart]);
+
   const send = useCallback(
     async (text: string) => {
       if (!text.trim() || loading) return;
@@ -58,10 +64,14 @@ export default function AiSidePanel({
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         let ai = '';
+        let buffer = ''; // SSE 事件可能被 read() 边界截断，缓冲不完整的行
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          for (const line of decoder.decode(value, { stream: true }).split('\n')) {
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? ''; // 最后一段可能不完整，留到下一轮
+          for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             const data = line.slice(6);
             if (data === '[DONE]') break;
