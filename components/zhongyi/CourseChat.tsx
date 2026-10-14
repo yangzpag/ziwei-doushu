@@ -132,11 +132,22 @@ export default function CourseChat({ book, initialAsk }: { book: string; initial
       patchActive((c) => ({ ...c, msgs: [...c.msgs, { role: 'user', text: question }] }));
       setBusy(true);
       const scopeBook = scope === 'ALL' ? undefined : scope;
+      // 追问改写所需的对话历史（用户问 + AI 引用主题）
+      const history = msgs.slice(-6).map((m) => ({
+        role: m.role,
+        text:
+          m.role === 'user'
+            ? m.text ?? ''
+            : `${m.intro ?? ''} ${(m.quotes ?? [])
+                .flatMap((g) => g.items.map((r) => r.quote))
+                .slice(0, 3)
+                .join(' ')}`.slice(0, 200),
+      }));
       try {
         const res = await fetch('/api/zhongyi/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ q: question, book: scopeBook }),
+          body: JSON.stringify({ q: question, book: scopeBook, history }),
         });
         const d = res.ok ? await res.json() : null;
         const groups: Group[] = d?.groups ?? [];
@@ -153,17 +164,38 @@ export default function CourseChat({ book, initialAsk }: { book: string; initial
           }));
           return;
         }
+        // 原著原文意图：语料是讲座口语、不含古籍原文——诚实说明，仍给讲解与指引
+        if (d?.wantsOriginal) {
+          patchActive((c) => ({
+            ...c,
+            msgs: [
+              ...c.msgs,
+              {
+                role: 'ai',
+                intro:
+                  '本库收录的是倪师讲座的口语录**（不含古籍原文）**，无法直接给出《伤寒论》等原典文本。以下是倪师讲到相关内容时的讲解，可作参考；查原文请以原典为准（如中国哲学书电子化计划 ctext.org）。',
+                quotes: [],
+                foot: '',
+              },
+            ],
+          }));
+        }
         const lead = groups[0].items[0].h2;
         const scopeName = scope === 'ALL' ? '全库六部' : meta?.name ?? '';
         patchActive((c) => ({
           ...c,
-          msgs: [...c.msgs, {
-            role: 'ai',
-            intro: `在<b>${scopeName}</b>的<b>${lead}</b>附近，倪师是这样讲的：`,
-            quotes: groups,
-            foot: d?.foot ?? '',
-            mode: d?.mode,
-          }],
+          msgs: [
+            ...c.msgs,
+            {
+              role: 'ai',
+              intro:
+                (d?.rewritten ? `<span style="opacity:.7">已按「${d.rewritten}」检索 · </span>` : '') +
+                `在<b>${scopeName}</b>的<b>${lead}</b>附近，倪师是这样讲的：`,
+              quotes: groups,
+              foot: d?.foot ?? '',
+              mode: d?.mode,
+            },
+          ],
         }));
       } catch {
         patchActive((c) => ({
@@ -174,7 +206,7 @@ export default function CourseChat({ book, initialAsk }: { book: string; initial
         setBusy(false);
       }
     },
-    [busy, scope, meta?.name, active]
+    [busy, scope, meta?.name, active, msgs]
   );
 
   function newConv() {
