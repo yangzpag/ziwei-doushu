@@ -30,11 +30,8 @@ export type SearchResult = {
 };
 
 /**
- * 检索判语（混合：向量语义 ∪ 关键词字面）。
- *
- * - 向量召回会漏字面精确匹配的长尾（如「蛇床子…阴湿湿疹」不进 Top60），
- *   因此关键词命中一并并入，保证不漏。
- * - bookId 为空 = 全库；否则限定部。
+ * 检索判语。bookId 为空 = 全库；否则限定部。
+ * 向量模式：cosine 距离排序；关键词模式：search_text ILIKE。
  */
 export async function searchEntries(
   q: string,
@@ -44,61 +41,43 @@ export async function searchEntries(
   if (!trimmed) return { mode: 'vector', entries: [] };
 
   const vec = await embedQuery(trimmed);
+  if (vec) {
+    const literal = `[${vec.join(',')}]`;
+    const params: unknown[] = [literal];
+    let where = '';
+    if (bookId) {
+      params.push(bookId);
+      where = 'WHERE book_id = $2';
+    }
+    const { rows } = await corpusPool.query<CorpusEntry>(
+      `SELECT id, book_id, h2, h3, quote, bvid, ep, t_hms,
+              1 - (embedding <=> $1::vector) AS score
+         FROM corpus_entry ${where}
+        ORDER BY embedding <=> $1::vector
+        LIMIT 60`,
+      params
+    );
+    return { mode: 'vector', entries: rows };
+  }
 
-  // 关键词词项（两种模式都用：向量模式补字面召回，降级模式独立检索）
+  // 降级：关键词（多词 OR 匹配；quote 命中优先）
   const terms = trimmed
     .split(/[\s,，。？！、；：""''（）]+/)
     .filter((t) => t.length >= 2)
     .slice(0, 6);
   const list = terms.length ? terms : [trimmed];
-  const kwWhere = `(${list.map((_, i) => `search_text ILIKE '%' || $1[${i + 1}] || '%'`).join(' OR ')})`;
-  const kwParams: unknown[] = [list];
-  if (bookId) kwParams.push(bookId);
-  const kwFilter = bookId ? `${kwWhere} AND book_id = $2` : kwWhere;
-
-  if (vec) {
-    const literal = `[${vec.join(',')}]`;
-    const vParams: unknown[] = [literal];
-    let vWhere = '';
-    if (bookId) {
-      vParams.push(bookId);
-      vWhere = 'WHERE book_id = $2';
-    }
-    // 向量 Top60（带余弦分）
-    const { rows: vecRows } = await corpusPool.query<CorpusEntry>(
-      `SELECT id, book_id, h2, h3, quote, bvid, ep, t_hms,
-              1 - (embedding <=> $1::vector) AS score
-         FROM corpus_entry ${vWhere}
-        ORDER BY embedding <=> $1::vector
-        LIMIT 60`,
-      vParams
-    );
-    // 关键词字面命中（补漏；quote 命中优先）
-    const { rows: kwRows } = await corpusPool.query<CorpusEntry>(
-      `SELECT id, book_id, h2, h3, quote, bvid, ep, t_hms, 0.5 AS score
-         FROM corpus_entry WHERE ${kwFilter}
-        ORDER BY (${list.map((_, i) => `quote ILIKE '%' || $1[${i + 1}] || '%'`).join(' OR ')}) DESC, ep
-        LIMIT 20`,
-      kwParams
-    );
-    // 合并去重：字面命中排前（精确匹配更可信），其余按向量分
-    const seen = new Set<string>();
-    const merged: CorpusEntry[] = [];
-    for (const r of [...kwRows, ...vecRows]) {
-      if (seen.has(r.id)) continue;
-      seen.add(r.id);
-      merged.push(r);
-    }
-    return { mode: 'vector', entries: merged };
+  const params: unknown[] = [list];
+  let where = `WHERE (${list.map((_, i) => `search_text ILIKE '%' || $1[${i + 1}] || '%'`).join(' OR ')})`;
+  if (bookId) {
+    params.push(bookId);
+    where += ' AND book_id = $2';
   }
-
-  // 降级：纯关键词
   const { rows } = await corpusPool.query<CorpusEntry>(
     `SELECT id, book_id, h2, h3, quote, bvid, ep, t_hms
-       FROM corpus_entry WHERE ${kwFilter}
+       FROM corpus_entry ${where}
       ORDER BY (${list.map((_, i) => `quote ILIKE '%' || $1[${i + 1}] || '%'`).join(' OR ')}) DESC, ep
       LIMIT 60`,
-    kwParams
+    params
   );
   return { mode: 'keyword', entries: rows };
 }
