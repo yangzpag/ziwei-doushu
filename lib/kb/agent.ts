@@ -52,13 +52,17 @@ interface NormSeg {
 
 /** agent 最多发起的检索轮数（第 3 轮强制综合回答） */
 const MAX_SEARCH_ROUNDS = 2;
+/** 佐证池上限：防弱相关段落稀释综合轮的注意力 */
+const MAX_POOL = 12;
 
 const AGENT_SYSTEM = `你是倪海厦《人纪》课程问答 agent。规则：
 1. 用户问题与课程内容相关（药、方、条文、症状、讲法）→ 先调用检索工具拿课程原文佐证（最多 ${MAX_SEARCH_ROUNDS} 轮，第二轮换角度：相关药材/方剂/症状术语），拿到后直接基于佐证回答，论点标注 [编号]（编号来自检索结果）
-2. 上下文对话已包含足够信息（追问场景，注意「上下文已有段落」清单）→ 直接回答，不必检索
-3. 与课程无关的闲聊或你确定能答的通用问题 → 直接回答，不检索
-4. 课程里没讲的内容，明说「课程里没讲」；课程内容是讲者观点，不作绝对化表述
-5. 简体中文，分点组织，300-500 字`;
+2. **课程内容是回答的主体**：任何段落与问题直接相关（提到同一疾病、症状、部位或治法），必须以该段落为回答主体并标注 [编号]；段落里的治法、药方要具体写出（药名、配伍、讲者原话要点），不要泛泛而谈
+3. 上下文对话已包含足够信息（追问场景，注意「上下文已有段落」清单）→ 直接回答，不必检索
+4. 与课程无关的闲聊或你确定能答的通用问题 → 直接回答，不检索
+5. 症状/疾病类问题（「X 怎么治」「X 是什么原因」）按鉴别诊断组织：列出几种可能的原因 → 每种附典型伴随症状与对应治法 → 结尾一行「参考课程段落：[编号] 时间（课程名）…」列出引用的视频位置；课程没覆盖的类型标注「（通用补充）」
+6. 课程段落没覆盖的部分可作通用补充，但必须标注「（通用补充）」，且不得覆盖或稀释课程内容；课程里没讲的，明说「课程里没讲」
+7. 课程内容是讲者观点，不作绝对化表述；简体中文，分点组织，300-500 字`;
 
 export function toSegmentOut(segments: SegmentHit[]): SegmentOut[] {
   return segments.map((s, i) => ({
@@ -90,6 +94,7 @@ export function collectContextSegments(history: HistoryTurn[]): SegmentOut[] {
 function mergePool(pool: SegmentOut[], incoming: SegmentOut[]): void {
   const seen = new Set(pool.map((s) => s.segment_id));
   for (const s of incoming) {
+    if (pool.length >= MAX_POOL) return; // 池满即止（incoming 按分数降序，砍的是最弱尾巴）
     if (seen.has(s.segment_id)) continue;
     seen.add(s.segment_id);
     s.n = pool.length + 1;
@@ -143,11 +148,11 @@ export async function runAgent(
     function: {
       name: 'search_course_segments',
       description:
-        '检索倪海厦《人纪》课程（伤寒论/金匮要略/神农本草经/黄帝内经/仲景心法/针灸大成）的语义段落。输入检索关键词（药材名、方剂名、症状、条文号等）。',
+        '检索倪海厦《人纪》课程（伤寒论/金匮要略/神农本草经/黄帝内经/仲景心法/针灸大成）的语义段落。技巧：现代病名要换算成中医术语与药名再检索（如鼻炎/鼻窦炎→鼻渊、辛夷、菖蒲、苍耳子；打嗝→呃逆、旋覆花；湿疹→湿疮、麻黄加术汤）；命中的段落里提到其他药名/方名且与问题相关时，下一轮优先检索那些药名。',
       parameters: {
         type: 'object',
         properties: {
-          query: z.string().min(1).describe('检索关键词，如：半夏、条336、湿疹'),
+          query: z.string().min(1).describe('检索关键词，如：辛夷、条336、湿疹'),
         },
         required: ['query'],
       },
@@ -155,13 +160,16 @@ export async function runAgent(
   };
 
   // ── 工具轮（最多 MAX_SEARCH_ROUNDS 轮） ──
+  // 增量式 msgs：每轮把 assistant(tool_calls) + ToolMessage 追加进去，
+  // 下一轮模型能看到之前所有轮的检索结果（盲轮会让第二轮乱漂）；
+  // 且 ToolMessage 前必须有对应 assistant 消息，否则 Anthropic 协议直接拒绝
   const msgs: BaseMessage[] = toMessages(history, q);
   for (let round = 1; round <= MAX_SEARCH_ROUNDS; round++) {
     let res: AIMessage;
     try {
       res = (await model
         .bindTools([searchDef])
-        .invoke(toMessages(history, q), { timeout: 30_000 })) as AIMessage;
+        .invoke(msgs, { timeout: 30_000 })) as AIMessage;
     } catch (e) {
       aiAvailable = false;
       em.trace(`⚠️ agent 调用失败：${(e as Error).message.slice(0, 100)}`);
@@ -184,6 +192,9 @@ export async function runAgent(
       }
       break;
     }
+
+    // 记录本轮 assistant 的 tool_calls——ToolMessage 必须紧跟其后（协议要求）
+    msgs.push(res);
 
     for (const tc of toolCalls) {
       if (tc.name !== 'search_course_segments') continue;
@@ -216,7 +227,22 @@ export async function runAgent(
   const ctxTitles = collectContextSegments(history).map((s) => s.title);
   let deltas = 0;
   try {
-    const stream = await model.stream(toMessages(history, q), { timeout: 60_000 });
+    // 综合轮必须复用含工具结果的完整消息列表——重建消息会把佐证丢光，
+    // 模型只能凭自身知识写答案（菖蒲治鼻窦炎被无视就是这个原因）
+    // 收尾指令：输出结构与引用规则在此硬化（埋在系统提示里模型会无视）
+    const synthMsgs = pool.length
+      ? [
+          ...msgs,
+          new HumanMessage(
+            `基于以上课程段落生成最终回答，严格遵守：
+1. 结构：分点列出几种可能的情况/类型 → 每种附典型伴随症状与对应治法（课程里的药方要具体写出药名与配伍）→ 结尾一行「参考课程段落」
+2. 课程段落与问题直接相关的内容必须是回答主体；你的通用医学知识只作补充，且补充处标注「（通用补充）」
+3. 凡引用课程段落处必须标注 [编号]（编号见上方检索结果）；结尾一行「参考课程段落：」按引用顺序列出 [编号] 时间区间（课程名）
+4. 简体中文，Markdown 分节`
+          ),
+        ]
+      : msgs;
+    const stream = await model.stream(synthMsgs, { timeout: 60_000 });
     for await (const chunk of stream) {
       const type = typeof chunk.getType === 'function' ? chunk.getType() : '';
       if (type !== 'ai') continue;
