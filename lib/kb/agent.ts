@@ -91,15 +91,18 @@ export function collectContextSegments(history: HistoryTurn[]): SegmentOut[] {
 }
 
 /** 段落池去重并入（只追加，编号稳定：佐证展开与引用角标不漂移） */
-function mergePool(pool: SegmentOut[], incoming: SegmentOut[]): void {
+function mergePool(pool: SegmentOut[], incoming: SegmentOut[]): SegmentOut[] {
   const seen = new Set(pool.map((s) => s.segment_id));
+  const added: SegmentOut[] = [];
   for (const s of incoming) {
-    if (pool.length >= MAX_POOL) return; // 池满即止（incoming 按分数降序，砍的是最弱尾巴）
+    if (pool.length >= MAX_POOL) break; // 池满即止（incoming 按分数降序，砍的是最弱尾巴）
     if (seen.has(s.segment_id)) continue;
     seen.add(s.segment_id);
     s.n = pool.length + 1;
     pool.push(s);
+    added.push(s);
   }
+  return added;
 }
 
 function toNorm(segs: SegmentOut[]): NormSeg[] {
@@ -177,6 +180,34 @@ export async function runAgent(
     }
 
     const toolCalls = res.tool_calls ?? [];
+
+    // DeepSeek 端点偶发把内部工具语法（DSML 标记）当普通文本吐出而非 tool_use 块——
+    // 若照常走「无工具=直答」会把原始标记漏给用户。此处解析出检索词并代为执行，
+    // 结果以系统消息形式回灌，循环继续
+    const rawText = typeof res.content === 'string' ? res.content : '';
+    const dsmlQueries = rawText.includes('DSML')
+      ? [...rawText.matchAll(/parameter name="query"[^>]*>([^<]+)</g)].map((m) => m[1].trim()).filter(Boolean)
+      : [];
+    if (!toolCalls.length && dsmlQueries.length) {
+      em.trace(`🛠 端点工具语法泄漏，代执行 ${dsmlQueries.length} 组检索`);
+      for (const query of dsmlQueries) {
+        em.trace(`🔍 检索（第 ${round} 轮·代执行）：${query}`);
+        const hits = await searchSegments(query, { databaseUrl, courseId: course, limit: 5 });
+        if (hits.length) {
+          const added = mergePool(pool, toSegmentOut(hits));
+          em.trace(`👀 命中 ${hits.length} 段（新增 ${added.length}，累计 ${pool.length}）`);
+        }
+      }
+      msgs.push(
+        new HumanMessage(
+          pool.length
+            ? `（系统已代执行上述检索，佐证池现有 ${pool.length} 段：${pool.map((p) => `[${p.n}]《${p.title}》`).join(' ')}。请基于现有佐证继续。）`
+            : '（系统已代执行上述检索，没有命中段落。）'
+        )
+      );
+      continue;
+    }
+
     if (!toolCalls.length) {
       // 模型直接回答了（无需检索）—— 整段一次性输出（少见路径）
       const text = typeof res.content === 'string' ? res.content : '';
@@ -207,16 +238,15 @@ export async function runAgent(
         continue;
       }
       const outs = toSegmentOut(hits);
-      mergePool(pool, outs);
-      em.trace(`👀 命中 ${hits.length} 段（累计 ${pool.length} 段）：${hits.slice(0, 3).map((h) => `《${h.title}》`).join(' ')}${hits.length > 3 ? ' …' : ''}`);
+      const added = mergePool(pool, outs);
+      em.trace(`👀 命中 ${hits.length} 段（新增 ${added.length}，累计 ${pool.length}）：${hits.slice(0, 3).map((h) => `《${h.title}》`).join(' ')}${hits.length > 3 ? ' …' : ''}`);
+      // 工具结果只列实际入池的段落——池满被砍的段落若仍列出，模型会引用
+      // 不存在的编号（[0] 就是这么来的）
       msgs.push(
         new ToolMessage(
-          outs
-            .map((o) => {
-              const n = pool.findIndex((p) => p.segment_id === o.segment_id) + 1;
-              return `[${n}] 《${o.title}》（${o.course}，${o.time_range}）\n${o.text}`;
-            })
-            .join('\n\n'),
+          added.length
+            ? added.map((o) => `[${o.n}] 《${o.title}》（${o.course}，${o.time_range}）\n${o.text}`).join('\n\n')
+            : '本批结果与已有佐证重复或佐证池已满，没有新增段落；如已有信息足够请直接回答。',
           tc.id ?? `call_r${round}`
         )
       );
@@ -237,8 +267,10 @@ export async function runAgent(
             `基于以上课程段落生成最终回答，严格遵守：
 1. 结构：分点列出几种可能的情况/类型 → 每种附典型伴随症状与对应治法（课程里的药方要具体写出药名与配伍）→ 结尾一行「参考课程段落」
 2. 课程段落与问题直接相关的内容必须是回答主体；你的通用医学知识只作补充，且补充处标注「（通用补充）」
-3. 凡引用课程段落处必须标注 [编号]（编号见上方检索结果）；结尾一行「参考课程段落：」按引用顺序列出 [编号] 时间区间（课程名）
-4. 简体中文，Markdown 分节`
+3. 相关性判断：段落的主题必须真正回答问题才单列为一种情况；仅字面沾边（如别的病里顺带提到某部位、或单味药提了一句）的不单列，最多并入补充说明，宁缺毋滥
+4. 去重：同一段落的依据（相同 [编号]）合并到一节里讲完，不许拆成多节重复展开
+5. 引用格式：引用课程内容处紧跟 [编号]（方括号数字，如 [2]），禁止写裸数字或不标；结尾一行「参考课程段落：」按引用顺序列出 [编号] 时间区间（课程名），只列正文实际引用过的编号
+6. 简体中文，Markdown 分节`
           ),
         ]
       : msgs;
