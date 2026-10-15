@@ -33,6 +33,8 @@ interface Msg {
   route?: { decision: string; score: number; reason: string };
   note?: string;
   segments?: SegmentOut[];
+  /** agent 思考/行动轨迹（loop 可见） */
+  trace?: string[];
   /** 佐证段落是否展开（默认折叠） */
   refsOpen?: boolean;
   failed?: boolean;
@@ -56,12 +58,13 @@ function renderAnswer(answer: string, segments: SegmentOut[]) {
   });
 }
 
-/** 组装发给后端的历史（最近 6 轮；assistant 轮带佐证段落全文，供追问直答） */
+/** 组装发给后端的历史（最近 6 轮；assistant 轮带佐证段落全文，供 agent 上下文与追问直答） */
 function buildHistory(messages: Msg[]) {
   return messages.slice(-6).map((m) => ({
     role: m.role,
     text: m.text,
     segments: m.segments?.length ? m.segments.map((x) => ({ title: x.title, text: x.text })) : undefined,
+    segmentsOut: m.segments?.length ? m.segments : undefined,
   }));
 }
 
@@ -90,7 +93,7 @@ export default function KbSearch() {
     setMessages((prev) => [...prev, { role: 'user', text, courseId: scope }]);
     setLoading(true);
     // 预置 assistant 消息位（流式期间逐字填充）
-    setMessages((prev) => [...prev, { role: 'assistant', text: '', refsOpen: false }]);
+    setMessages((prev) => [...prev, { role: 'assistant', text: '', refsOpen: false, trace: [] }]);
 
     try {
       const res = await fetch('/api/kb/ask', {
@@ -136,6 +139,9 @@ export default function KbSearch() {
           } else if (event === 'segments') {
             const segs = (data as unknown as { segments: SegmentOut[] }).segments;
             patchLast((m) => ({ ...m, segments: segs, refsOpen: false }));
+          } else if (event === 'trace') {
+            const t = (data as unknown as { text: string }).text;
+            patchLast((m) => ({ ...m, trace: [...(m.trace ?? []), t] }));
           } else if (event === 'error') {
             patchLast((m) => ({ ...m, text: (data as unknown as { message: string }).message, failed: true }));
           }
@@ -211,6 +217,16 @@ export default function KbSearch() {
                           : m.route.decision === 'context'
                             ? `💬 上下文直答 · ${m.route.reason}`
                             : `💬 直接回答 · ${m.route.reason}`}
+                      </div>
+                    )}
+                    {/* agent 思考轨迹（loop 可见） */}
+                    {m.trace && m.trace.length > 0 && (
+                      <div className={s.trace}>
+                        {m.trace.map((t, ti) => (
+                          <div key={ti} className={s.traceLine}>
+                            {t}
+                          </div>
+                        ))}
                       </div>
                     )}
                     {/* 主角：AI 回答（流式逐字） */}

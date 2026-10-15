@@ -29,8 +29,10 @@ export type RouteDecision = 'rag' | 'direct' | 'context';
 export interface HistoryTurn {
   role: 'user' | 'assistant';
   text: string;
-  /** 该轮检索到的段落（追问直答的素材） */
+  /** 该轮检索到的段落摘要（追问直答判定用） */
   segments?: { title: string; text: string }[];
+  /** 佐证段落原样透传（agent 上下文直答用；元素结构见 lib/kb/agent.ts 的 SegmentOut） */
+  segmentsOut?: unknown[];
 }
 
 export interface RouteResult {

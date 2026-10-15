@@ -86,3 +86,8 @@
 .chatFoot { margin: 12px 0 40px; font-size: 12px; color: #9A9184; line-height: 1.7; }
 .chatFoot b { color: #6B6355; }
 .foot { margin: 0 0 40px; font-size: 12px; color: #9A9184; line-height: 1.7; }
+
+/* agent 思考轨迹（loop 可见） */
+.trace { margin: 0 0 10px; padding: 8px 12px; background: #F6F2E8; border: 1px dashed rgba(93, 74, 40, .22); border-radius: 8px; }
+.traceLine { font-size: 12px; color: #8A7F6E; line-height: 1.8; }
+.traceLine:first-child { color: #6E5320; }
