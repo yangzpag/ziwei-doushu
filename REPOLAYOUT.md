@@ -39,30 +39,14 @@ components/
 lib/
   ziwei/                   # 排盘引擎（算法/常量/类型/layers 六层推演）
   corpus/                  # 中医知识库语料：books（六部元数据）、pg（PG 池）、search（向量+关键词检索）
-  vk/                      # 通用视频知识流水线（字幕/摘录 → 知识卡片），见 docs/video-kb-pipeline.md
-    types.ts timeline.ts   # 核心类型 / 时间轴与 B 站链接（程序计算，禁编造）
-    adapters/              # SRT/VTT/字幕JSON/摘录JSONL 适配器 + 格式探测
-    clean.ts glossary.ts   # 清洗（噪声/去重/断行合并）与术语词表（存疑只标记不改写）
-    config/                # 内容类型配置：generic-lecture / book-commentary / shennong-bencao
-    segment.ts             # 章节（粗粒度）+ 主题段落切分（evID 边界，程序算时间）
-    summarize.ts card.ts   # 抽取式摘要 + 卡片组装；llm.ts/prompts.ts/mock-llm.ts 为可选 LLM 适配器
-    validate.ts            # 卡片校验（字段/时间/依据/覆盖/否定保留/摘录冒充）→ 待复核队列
-    store.ts search.ts     # PG vk_* 表写入 + 混合检索（向量∪关键词，按 segment 归并）
-    cache.ts runner.ts     # 内容哈希缓存 + 阶段编排（断点续跑/重试/限流/小样本）
   auth.ts                  # 服务端 cookie 会话（getValidSession：ok/unauthenticated/invalid/transient_error）
   yudao.ts                 # Java API 客户端（token/tenant-id/自定义 headers）
 data/corpus/
   entries.jsonl            # 倪海厦《人纪》语料 19,294 条（nihai-renji-corpus，CC BY-NC-SA 4.0）
-data/vk/
-  glossaries/              # 领域术语词表（build-glossary.ts 从语料 h2 数据驱动生成）
-  samples/                 # 测试样本：合成非中医字幕 SRT / 20 问评测问题集 / 样例卡片 Markdown
-  authors/                 # agent 撰写工作单与卡片 JSON（小批量高质量轨）
 scripts/
   regression/              # 排盘回归测试（9 个，`pnpm test` 必须全绿才能合并）
   embed-server.mjs         # embedding 微服务（bge-small-zh-v1.5，端口 3001；挂了检索自动降级关键词）
   kb/                      # import-corpus.mjs（语料导入，可重复执行）+ corpus-tables.sql（pgvector 表结构）
-  vk/                      # 视频知识流水线 CLI：run / query / eval-questions / author-cards /
-                           #   dump-cards / build-glossary / schema.sql / pipeline.test.ts / e2e-synthetic.test.ts
 sql/
   postgresql/ziwei.sql     # 权益模块表结构（PG，幂等脚本）
   mysql/ziwei.sql          # 同结构 MySQL 版
@@ -99,5 +83,4 @@ sql/
 ## 相关文档
 
 - `CODESTYLE.md`：代码风格与提交前自审清单
-- `docs/video-kb-pipeline.md`：通用视频知识流水线（设计/用法/schema/提示词/实测）
 - 根目录 `PLAN.md`（本地）：项目阶段计划与踩坑记录
