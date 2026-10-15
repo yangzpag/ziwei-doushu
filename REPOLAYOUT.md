@@ -25,46 +25,22 @@ app/
     ziwei/                 # 权益 BFF：points（余额）、chart（保存/列表/详情/删除）
       _session.ts          # BFF 会话辅助（401/503 语义约定，见 CODESTYLE）
     interpret/             # AI 对话（SSE 流式，扣次数/失败退还）
-    zhongyi/               # 中医知识库 BFF：books（六部统计）/ ask（语义检索）/ outline（课程大纲）
   middleware.ts            # 保护 /profile（未登录 302 → /login?next=）
-app/
-  zhongyi/                 # 中医知识库页面：page（首页：搜索+六部卡片）、[book]（课程问答）
 components/
   v2/                      # V2 改版组件（TopBar/ChartGridV2/AiSidePanel/BirthForm 复用）
-  zhongyi/                 # 知识库组件：KbHome（首页）、CourseChat（问答/引用/历史/大纲）、zhongyi.module.css
   BirthForm.tsx            # 出生信息表单（首页/排盘页共用）
   ChartBoard.tsx           # 命盘棋盘（回放页复用）
   ChatPanel.tsx            # 开源版 AI 面板（当前未挂载，SSE 读取逻辑参考 AiSidePanel）
   UserNav.tsx              # 全站用户入口（登录态感知，variant: float/inline）
 lib/
   ziwei/                   # 排盘引擎（算法/常量/类型/layers 六层推演）
-  corpus/                  # 中医知识库语料：books（六部元数据）、pg（PG 池）、search（向量+关键词检索）
   auth.ts                  # 服务端 cookie 会话（getValidSession：ok/unauthenticated/invalid/transient_error）
   yudao.ts                 # Java API 客户端（token/tenant-id/自定义 headers）
-data/corpus/
-  entries.jsonl            # 倪海厦《人纪》语料 19,294 条（nihai-renji-corpus，CC BY-NC-SA 4.0）
-scripts/
-  regression/              # 排盘回归测试（9 个，`pnpm test` 必须全绿才能合并）
-  embed-server.mjs         # embedding 微服务（bge-small-zh-v1.5，端口 3001；挂了检索自动降级关键词）
-  kb/                      # import-corpus.mjs（语料导入，可重复执行）+ corpus-tables.sql（pgvector 表结构）
+scripts/regression/        # 排盘回归测试（8 个，`pnpm test` 必须全绿才能合并）
 sql/
   postgresql/ziwei.sql     # 权益模块表结构（PG，幂等脚本）
   mysql/ziwei.sql          # 同结构 MySQL 版
 ```
-
-## 中医知识库架构（2026-10-13 上线）
-
-```
-浏览器 ──▶ Next.js BFF /api/zhongyi/*
-             │  ├─ 语义检索：embed-server(3001) 向量化 query → PG pgvector 余弦 Top60
-             │  └─ 降级：embed-server 不可用 → 关键词多词 OR（search_text ILIKE）
-             ▼
-        PostgreSQL（Neon，corpus_book / corpus_entry(embedding vector(512) + HNSW)）
-```
-
-- 语料导入：`DATABASE_URL=… node scripts/kb/import-corpus.mjs`（先启动 embed-server；约 11 分钟）
-- 版权：语料 CC BY-NC-SA 4.0（仅非商业），课程内容版权归倪海厦先生及其权利继承人；页面保留署名声明
-- 回放：每条判语拼 `https://www.bilibili.com/video/{bvid}?t={秒}` 新标签页打开
 
 ## 数据流与信任边界
 

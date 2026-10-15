@@ -14,8 +14,6 @@
 4. **前端错误态**：列表/详情加载失败必须显示错误 + 重试入口，不得停留在"加载中…"
 5. **计费操作**：bizNo 由**服务端生成**（不信任客户端）；`thinking: { type: 'disabled' }`（推理模型默认思考会耗尽 max_tokens 导致无正文）
 6. 状态机类型收紧（`'loading' | 'ready' | 'error'`），新增状态记得同步更新类型声明
-7. **CSS Module 动态类必须用 `s.xxx`**——`.a.open` 编译后是 `.a_hash.open_hash`，JSX 里写字面量 `'open'` 永远匹配不上（曾导致引用抽屉/菜单不展开的隐蔽 bug）。同理 `.searchBox.has` → `s.has`
-8. **absolute inset:0 的 SVG 覆盖层**：relative 容器内再加静态元素（图例等）会拉伸 SVG 视口导致坐标错位——附加元素放容器外
 
 ## Java（yudao-module-ziwei）
 
