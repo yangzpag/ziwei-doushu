@@ -56,9 +56,7 @@ export default function TopBar({ active = 'chart' }: { active?: 'chart' | 'tcm' 
           <Link className={`${s.tab} ${active === 'chart' ? s.tabActive : ''}`} href="/">
             命盘推理
           </Link>
-          <Link className={`${s.tab} ${active === 'tcm' ? s.tabActive : ''}`} href="/zhongyi">
-            中医知识库
-          </Link>
+          <span className={s.tab}>中医知识库</span>
           <span className={s.tab}>3D 人体经络</span>
         </nav>
 
