@@ -23,7 +23,15 @@ const COURSE_KEYWORDS = [
   '条文', '课程里', '视频里', '第几集',
 ];
 
-export type RouteDecision = 'rag' | 'direct';
+export type RouteDecision = 'rag' | 'direct' | 'context';
+
+/** 对话历史中的一轮（用于追问判定：实体已在上下文段落中 → 直答不检索） */
+export interface HistoryTurn {
+  role: 'user' | 'assistant';
+  text: string;
+  /** 该轮检索到的段落（追问直答的素材） */
+  segments?: { title: string; text: string }[];
+}
 
 export interface RouteResult {
   decision: RouteDecision;
@@ -79,7 +87,33 @@ async function llmClassify(q: string, topTitle: string, score: number): Promise<
   }
 }
 
-export async function routeQuery(q: string): Promise<RouteResult> {
+/** 追问直答判定：问题的核心实体已在上下文段落里 + 追问式问法 → 用上下文回答，不检索 */
+function detectContextAnswer(q: string, history: HistoryTurn[]): { hit: boolean; reason: string } {
+  const prevSegments = history.flatMap((h) => h.segments ?? []);
+  if (!prevSegments.length) return { hit: false, reason: '' };
+  // 追问式问法（问用法/性质/原因，而不是要新信息）
+  const followUpStyle = /怎么用|如何|是什麼|是什么|什么意思|性味|主治|功效|禁忌|副作用|为什么|为何|多少钱|多少钱|特点|区别/.test(q);
+  if (!followUpStyle) return { hit: false, reason: '' };
+  // 核心实体：去掉问法词后剩余 ≥2 字的内容，出现在上下文段落标题或正文里
+  const core = q
+    .replace(/怎么用|如何|是什麼|是什么|什么意思|性味|主治|功效|禁忌|副作用|为什么|为何|多少钱|多少钱|特点|区别|呢|吗|啊|吧|[？?。，、]/g, '')
+    .trim();
+  if (core.length < 2) return { hit: false, reason: '' };
+  for (const seg of prevSegments) {
+    if (seg.title.includes(core) || seg.text.includes(core)) {
+      return { hit: true, reason: `追问实体「${core}」已在上下文段落《${seg.title}》中，直接用上下文回答` };
+    }
+  }
+  return { hit: false, reason: '' };
+}
+
+export async function routeQuery(q: string, history: HistoryTurn[] = []): Promise<RouteResult> {
+  // 追问直答：实体已在上下文段落中 → 不检索
+  const ctx = detectContextAnswer(q, history);
+  if (ctx.hit) {
+    return { decision: 'context', score: 1, reason: ctx.reason, usedLlm: false };
+  }
+
   // 关键词直通：明确点名课程内容
   if (COURSE_KEYWORDS.some((k) => q.includes(k))) {
     return { decision: 'rag', score: 1, reason: '问题明确指向课程内容', usedLlm: false };

@@ -2,8 +2,11 @@
 
 /**
  * 知识库问答页 —— 结构/样式移植自《中医知识库.html》设计稿的「课程对话页」，
- * 但去掉设计稿的课程归属结构（面包屑、课程标题、大纲侧栏、课程卡片）：
+ * 但去掉设计稿的课程归属结构（面包屑/课程标题/大纲侧栏/课程卡片）：
  * 对话打平，不隶属于任何课程；课程只是每条提问的检索范围（输入框上的「问答范围」选择器）。
+ *
+ * AI 回答是主角；检索到的段落只是佐证，默认折叠（「📑 佐证段落」），用户自行展开。
+ * 追问已问过的实体（如「蛇床子怎么用」）直接用上下文回答，不再检索。
  */
 import { useState, useRef, useEffect } from 'react';
 import TopBar from '@/components/v2/TopBar';
@@ -18,6 +21,7 @@ interface SegmentOut {
   time_range: string;
   jump_url: string;
   text_preview: string;
+  text: string;
   score: number;
 }
 
@@ -27,15 +31,16 @@ interface Msg {
   /** 提问时携带的课程范围（null = 全部课程） */
   courseId?: string | null;
   route?: { decision: string; score: number; reason: string };
-  aiAvailable?: boolean;
   note?: string;
   segments?: SegmentOut[];
+  /** 佐证段落是否展开（默认折叠） */
+  refsOpen?: boolean;
   failed?: boolean;
 }
 
 const EXAMPLES = ['湿疹怎么治疗', '半夏止恶心配什么药', '条336讲什么', '便秘可以用大黄吗', '失眠怎么治'];
 
-/** 回答里的 [1][2] 引用 → 设计稿 .cite 小角标（点击打开对应段落的视频跳转） */
+/** 回答里的 [1][2] 引用 → 设计稿 .cite 小角标（点击打开对应佐证段落的视频跳转） */
 function renderAnswer(answer: string, segments: SegmentOut[]) {
   const parts = answer.split(/(\[\d+\])/g);
   return parts.map((p, i) => {
@@ -51,6 +56,15 @@ function renderAnswer(answer: string, segments: SegmentOut[]) {
   });
 }
 
+/** 组装发给后端的历史（最近 6 轮；assistant 轮带佐证段落全文，供追问直答） */
+function buildHistory(messages: Msg[]) {
+  return messages.slice(-6).map((m) => ({
+    role: m.role,
+    text: m.text,
+    segments: m.segments?.length ? m.segments.map((x) => ({ title: x.title, text: x.text })) : undefined,
+  }));
+}
+
 export default function KbSearch() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [q, setQ] = useState('');
@@ -63,37 +77,72 @@ export default function KbSearch() {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages, loading]);
 
+  const patchLast = (fn: (m: Msg) => Msg) => {
+    setMessages((prev) => prev.map((m, i) => (i === prev.length - 1 ? fn(m) : m)));
+  };
+
   const ask = async (question: string) => {
     const text = question.trim();
     if (!text || loading) return;
     setQ('');
     const scope = courseId;
+    const history = buildHistory(messages);
     setMessages((prev) => [...prev, { role: 'user', text, courseId: scope }]);
     setLoading(true);
+    // 预置 assistant 消息位（流式期间逐字填充）
+    setMessages((prev) => [...prev, { role: 'assistant', text: '', refsOpen: false }]);
+
     try {
       const res = await fetch('/api/kb/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ q: text, course: scope ?? undefined }),
+        body: JSON.stringify({ q: text, course: scope ?? undefined, history, stream: true }),
       });
-      const d = await res.json();
-      if (!res.ok) {
-        setMessages((prev) => [...prev, { role: 'assistant', text: d?.message ?? '检索失败，请重试', failed: true }]);
+      if (!res.ok || !res.body) {
+        const d = res.ok ? null : await res.json().catch(() => null);
+        patchLast((m) => ({ ...m, text: d?.message ?? '检索失败，请重试', failed: true }));
         return;
       }
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          text: d.answer ?? '',
-          route: d.route,
-          aiAvailable: d.aiAvailable,
-          note: d.note,
-          segments: d.segments ?? [],
-        },
-      ]);
+
+      // ── SSE 流式消费 ──
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        let idx: number;
+        while ((idx = buf.indexOf('\n\n')) !== -1) {
+          const raw = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
+          const event = raw.split('\n').find((l) => l.startsWith('event:'))?.slice(6).trim();
+          const dataLine = raw.split('\n').find((l) => l.startsWith('data:'))?.slice(5).trim();
+          if (!event || !dataLine) continue;
+          let data: Record<string, never>;
+          try {
+            data = JSON.parse(dataLine);
+          } catch {
+            continue;
+          }
+          if (event === 'route') {
+            patchLast((m) => ({ ...m, route: data as unknown as Msg['route'] }));
+          } else if (event === 'delta') {
+            const t = (data as unknown as { text: string }).text;
+            patchLast((m) => ({ ...m, text: m.text + t }));
+          } else if (event === 'note') {
+            const t = (data as unknown as { text: string }).text;
+            patchLast((m) => ({ ...m, note: m.note ? `${m.note} ${t}` : t }));
+          } else if (event === 'segments') {
+            const segs = (data as unknown as { segments: SegmentOut[] }).segments;
+            patchLast((m) => ({ ...m, segments: segs, refsOpen: false }));
+          } else if (event === 'error') {
+            patchLast((m) => ({ ...m, text: (data as unknown as { message: string }).message, failed: true }));
+          }
+        }
+      }
     } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', text: '网络异常，请重试', failed: true }]);
+      patchLast((m) => ({ ...m, text: '网络异常，请重试', failed: true }));
     } finally {
       setLoading(false);
     }
@@ -101,6 +150,10 @@ export default function KbSearch() {
 
   const scopeLabel = courseId ? (COURSES.find((c) => c.id === courseId)?.name ?? courseId) : '全部课程';
   const empty = messages.length === 0;
+
+  const toggleRefs = (i: number) => {
+    setMessages((prev) => prev.map((m, j) => (j === i ? { ...m, refsOpen: !m.refsOpen } : m)));
+  };
 
   return (
     <div className={s.page}>
@@ -110,8 +163,8 @@ export default function KbSearch() {
           <p className={s.eyebrow}>TCM KNOWLEDGE BASE</p>
           <h1>中医知识库</h1>
           <p className={s.sub}>
-            按语义段落检索倪海厦《人纪》讲课内容。对话打平——课程只是每条提问的检索范围，随时换，历史不归任何课程所有。
-            回答论点带引用角标，点角标或「回放那一秒」跳到 B 站原视频对应时间。
+            按语义段落检索倪海厦《人纪》讲课内容，AI 基于课程段落作答。对话打平——课程只是每条提问的检索范围，随时换，历史不归任何课程所有。
+            回答里的引用角标和折叠的「佐证段落」都能跳到 B 站原视频对应时间。
           </p>
         </div>
 
@@ -141,49 +194,61 @@ export default function KbSearch() {
                 </div>
               ) : (
                 <div key={i} className={`${s.assistantRow} ${m.failed ? s.assistantFailed : ''}`}>
-                  <div className={s.aiTag}>{m.failed ? '倪师 · 出错了' : m.aiAvailable === false ? '倪师 · 语料直检' : '倪师 · AI'}</div>
+                  <div className={s.aiTag}>
+                    {m.failed
+                      ? '倪师 · 出错了'
+                      : m.route?.decision === 'context'
+                        ? '倪师 · 上下文直答'
+                        : m.route?.decision === 'direct'
+                          ? '倪师 · 直接回答'
+                          : '倪师 · AI'}
+                  </div>
                   <div className={s.aiBody}>
                     {m.route && (
                       <div className={`${s.badge} ${m.route.decision === 'rag' ? s.badgeRag : s.badgeDirect}`}>
                         {m.route.decision === 'rag'
-                          ? `🧭 已查课程库 · top1 相似度 ${m.route.score.toFixed(2)} · ${m.segments?.length ?? 0} 个段落`
-                          : `💬 直接回答 · ${m.route.reason}`}
+                          ? `🧭 已查课程库 · top1 相似度 ${m.route.score.toFixed(2)}`
+                          : m.route.decision === 'context'
+                            ? `💬 上下文直答 · ${m.route.reason}`
+                            : `💬 直接回答 · ${m.route.reason}`}
                       </div>
                     )}
-                    <div className={s.answer}>{m.failed ? m.text : renderAnswer(m.text, m.segments ?? [])}</div>
+                    {/* 主角：AI 回答（流式逐字） */}
+                    <div className={s.answer}>
+                      {m.failed ? m.text : renderAnswer(m.text, m.segments ?? [])}
+                      {!m.failed && !m.text && <span className={s.typing}>思考中…</span>}
+                    </div>
                     {m.note && <div className={s.note}>{m.note}</div>}
+                    {/* 佐证：默认折叠，用户自行展开 */}
                     {(m.segments?.length ?? 0) > 0 && (
-                      <>
-                        <div className={s.segTitle}>引用段落（点角标或回放跳到视频那一秒）</div>
-                        {m.segments!.map((seg) => (
-                          <div key={seg.segment_id} className={s.segCard}>
-                            <div className={s.segTop}>
-                              <span className={s.segN}>{seg.n}</span>
-                              <span className={s.segName}>{seg.title}</span>
-                              <span className={s.segMeta}>
-                                {seg.course} · {seg.time_range} · 相似度 {seg.score.toFixed(2)}
-                              </span>
-                              {seg.jump_url && (
-                                <a className={s.jump} href={seg.jump_url} target="_blank" rel="noreferrer">
-                                  ▶ 回放那一秒
-                                </a>
-                              )}
+                      <div className={s.refsBox}>
+                        <button className={s.refsToggle} onClick={() => toggleRefs(i)}>
+                          <span className={s.refsIcon}>📑</span> 佐证段落（{m.segments!.length}）
+                          <span className={s.refsCaret}>{m.refsOpen ? '▲ 收起' : '▾ 展开'}</span>
+                        </button>
+                        {m.refsOpen &&
+                          m.segments!.map((seg) => (
+                            <div key={seg.segment_id} className={s.segCard}>
+                              <div className={s.segTop}>
+                                <span className={s.segN}>{seg.n}</span>
+                                <span className={s.segName}>{seg.title}</span>
+                                <span className={s.segMeta}>
+                                  {seg.course} · {seg.time_range} · 相似度 {seg.score.toFixed(2)}
+                                </span>
+                                {seg.jump_url && (
+                                  <a className={s.jump} href={seg.jump_url} target="_blank" rel="noreferrer">
+                                    ▶ 回放那一秒
+                                  </a>
+                                )}
+                              </div>
+                              <div className={s.segText}>{seg.text_preview}…</div>
                             </div>
-                            <div className={s.segText}>{seg.text_preview}…</div>
-                          </div>
-                        ))}
-                      </>
+                          ))}
+                      </div>
                     )}
                   </div>
                 </div>
               )
-            )}
-
-            {loading && (
-              <div className={s.assistantRow}>
-                <div className={s.aiTag}>倪师 · 思考中</div>
-                <div className={s.aiBody}>…</div>
-              </div>
             )}
             <div ref={bottomRef} />
           </div>
@@ -254,13 +319,13 @@ export default function KbSearch() {
         </div>
 
         <p className={s.chatFoot}>
-          当前回答模式：<b>{messages.some((m) => m.aiAvailable === false) ? '语料直检' : '大模型语义回答'}</b>
-          ——AI 不可用时自动降级为命中段落原文（检索、引用、回放不变）。回答仅供传统文化学习参考，不构成医疗建议。
+          当前回答模式：<b>AI 作答 · 佐证折叠</b>——回答基于课程段落生成并标注引用；检索到的段落是佐证，默认折叠，点开可核对原文并回放。
+          AI 不可用时自动降级为段落原文。回答仅供传统文化学习参考，不构成医疗建议。
         </p>
 
         <p className={s.foot}>
           语料来源：nihai-renji-corpus（CC BY-NC-SA 4.0，仅限非商业用途）；原课程内容版权归倪海厦先生及其权利继承人所有。
-          当前语料为讲课摘录（非完整逐字稿），段落文本为摘录拼接，完整内容请点回放看原视频。
+          当前语料为讲课摘录（非完整逐字稿），佐证段落为摘录拼接，完整内容请点回放看原视频。
         </p>
       </div>
     </div>
