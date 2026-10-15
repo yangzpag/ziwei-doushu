@@ -84,12 +84,18 @@ export async function searchSegmentsByVec(
       byId.set(r.segment_id, { ...r, score: Number(r.score) });
     }
 
-    // 2) 标题命中（问题点名段落主题）——与课程筛选无关，单独查后合并
+    // 2) 标题命中（问题点名段落主题）——同样受课程筛选约束，避免限定课程时漏进其他课程
+    const titleParams: unknown[] = [vecStr, q];
+    let titleCourseWhere = '';
+    if (opts.courseId) {
+      titleParams.push(opts.courseId);
+      titleCourseWhere = 'AND course_id = $3';
+    }
     const { rows: titleRows } = await client.query<SegmentHit & { score: string }>(
       `SELECT segment_id, video_id, course_id, title, text, start_seconds, end_seconds, bvid, ep, sentence_count,
               1 - (embedding <=> $1::vector) AS score
-         FROM kb_segment WHERE $2::text LIKE '%' || title || '%'`,
-      [vecStr, q]
+         FROM kb_segment WHERE $2::text LIKE '%' || title || '%' ${titleCourseWhere}`,
+      titleParams
     );
     for (const r of titleRows) {
       if (!titleNamedInQuery(r.title, q)) continue;
