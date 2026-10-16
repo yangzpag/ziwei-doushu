@@ -9,6 +9,8 @@
  * 追问已问过的实体（如「蛇床子怎么用」）直接用上下文回答，不再检索。
  */
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import TopBar from '@/components/v2/TopBar';
 import { COURSES } from '@/lib/kb/courses';
 import s from './kb.module.css';
@@ -43,19 +45,39 @@ interface Msg {
 const EXAMPLES = ['湿疹怎么治疗', '半夏止恶心配什么药', '条336讲什么', '便秘可以用大黄吗', '失眠怎么治'];
 
 /** 回答里的 [1][2] 引用 → 设计稿 .cite 小角标（点击打开对应佐证段落的视频跳转） */
-function renderAnswer(answer: string, segments: SegmentOut[]) {
-  const parts = answer.split(/(\[\d+\])/g);
-  return parts.map((p, i) => {
-    const m = p.match(/^\[(\d+)\]$/);
-    if (!m) return <span key={i}>{p}</span>;
-    const seg = segments[Number(m[1]) - 1];
-    if (!seg) return <span key={i}>{p}</span>;
-    return (
-      <a key={i} className={s.cite} href={seg.jump_url} target="_blank" rel="noreferrer" title={`${seg.title} · ${seg.time_range}`}>
-        {m[1]}
-      </a>
-    );
-  });
+/** Markdown 里的 [n] 角标 → 内部锚点链接，渲染时映射回跳转按钮 */
+function withCiteLinks(answer: string): string {
+  return answer.replace(/\[(\d+)\](?!\()/g, '[$1](#cite-$1)');
+}
+
+/** AI 回答渲染：Markdown（标题/加粗/列表/表格）+ [n] 角标跳转 */
+function AnswerMarkdown({ answer, segments }: { answer: string; segments: SegmentOut[] }) {
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        a({ href, children }) {
+          const m = href?.match(/^#cite-(\d+)$/);
+          if (!m) {
+            return (
+              <a href={href} target="_blank" rel="noreferrer">
+                {children}
+              </a>
+            );
+          }
+          const seg = segments[Number(m[1]) - 1];
+          if (!seg) return <span className={s.cite}>{children}</span>;
+          return (
+            <a className={s.cite} href={seg.jump_url} target="_blank" rel="noreferrer" title={`${seg.title} · ${seg.time_range}`}>
+              {children}
+            </a>
+          );
+        },
+      }}
+    >
+      {withCiteLinks(answer)}
+    </ReactMarkdown>
+  );
 }
 
 /** 组装发给后端的历史（最近 6 轮；assistant 轮带佐证段落全文，供 agent 上下文与追问直答） */
@@ -232,9 +254,9 @@ export default function KbSearch() {
                         ))}
                       </div>
                     )}
-                    {/* 主角：AI 回答（流式逐字） */}
+                    {/* 主角：AI 回答（流式逐字，Markdown 渲染） */}
                     <div className={s.answer}>
-                      {m.failed ? m.text : renderAnswer(m.text, m.segments ?? [])}
+                      {m.failed ? m.text : <AnswerMarkdown answer={m.text} segments={m.segments ?? []} />}
                       {!m.failed && !m.text && <span className={s.typing}>思考中…</span>}
                     </div>
                     {m.note && <div className={s.note}>{m.note}</div>}
