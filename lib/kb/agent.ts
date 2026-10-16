@@ -41,6 +41,8 @@ export interface Emitter {
   segments(segs: SegmentOut[]): void;
   /** agent 思考/行动轨迹（loop 可见性） */
   trace(text: string): void;
+  /** 清空当前 assistant 消息已发内容（综合轮泄漏重试前调用，防重复） */
+  reset(): void;
 }
 
 interface NormSeg {
@@ -274,14 +276,41 @@ export async function runAgent(
           ),
         ]
       : msgs;
-    const stream = await model.stream(synthMsgs, { timeout: 60_000 });
-    for await (const chunk of stream) {
-      const type = typeof chunk.getType === 'function' ? chunk.getType() : '';
-      if (type !== 'ai') continue;
-      const text = typeof chunk.content === 'string' ? chunk.content : '';
-      if (text) {
+    let answer = '';
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const synthInput =
+        attempt === 1
+          ? synthMsgs
+          : [
+              ...synthMsgs,
+              new HumanMessage(
+                '（系统提示：上一轮你输出了内部检索语法而不是回答。不要再调用任何工具或检索，直接基于已有佐证输出最终回答。）'
+              ),
+            ];
+      answer = '';
+      deltas = 0; // 每次尝试独立计数：前端 reset 后旧 delta 不再算数
+      const stream = await model.stream(synthInput, { timeout: 60_000 });
+      let leaked = false;
+      for await (const chunk of stream) {
+        const type = typeof chunk.getType === 'function' ? chunk.getType() : '';
+        if (type !== 'ai') continue;
+        const text = typeof chunk.content === 'string' ? chunk.content : '';
+        if (!text) continue;
+        // 综合轮未绑工具，DeepSeek 偶发把 DSML 工具语法当纯文本吐出——
+        // 不能转发给用户；检测到则丢弃本次输出并带强提示重试一次
+        if (text.includes('DSML') || text.includes('<｜｜') || text.includes('｜｜DSML')) {
+          leaked = true;
+          break;
+        }
+        answer += text;
         em.delta(text);
         deltas += 1;
+      }
+      if (!leaked && answer.trim()) break;
+      // 重试：reset 清掉前端已收的半截内容（可能已流出部分 delta），防重复
+      if (attempt === 1) {
+        em.trace('⚠️ 综合轮输出泄漏工具语法，重试中');
+        em.reset();
       }
     }
   } catch {

@@ -142,6 +142,9 @@ export default function KbSearch() {
           } else if (event === 'trace') {
             const t = (data as unknown as { text: string }).text;
             patchLast((m) => ({ ...m, trace: [...(m.trace ?? []), t] }));
+          } else if (event === 'reset') {
+            // 综合轮泄漏工具语法，服务端重试——清空已发的半截内容防重复
+            patchLast((m) => ({ ...m, text: '' }));
           } else if (event === 'error') {
             patchLast((m) => ({ ...m, text: (data as unknown as { message: string }).message, failed: true }));
           }

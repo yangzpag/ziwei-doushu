@@ -53,6 +53,7 @@ export async function POST(req: Request) {
           note: (t) => send('note', { text: t }),
           segments: (segs) => send('segments', { segments: segs }),
           trace: (t) => send('trace', { text: t }),
+          reset: () => send('reset', {}),
         };
         try {
           await runAgent(q, course, history, em);
@@ -97,6 +98,9 @@ export async function POST(req: Request) {
     },
     trace: (t) => {
       acc.trace.push(t);
+    },
+    reset: () => {
+      acc.answer = '';
     },
   };
   try {
