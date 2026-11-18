@@ -125,6 +125,94 @@ const DIRECT_FALLBACK = '这个问题与课程库无关。当前网络暂时无�
 const NOHIT_FALLBACK = '课程库里没有找到与这个问题相关的内容。当前网络暂时无法调用 AI 通用回答。';
 
 /**
+ * DeepSeek DSML 工具语法流式过滤器（综合轮泄漏抢救用）。
+ * 泄漏形如（分隔符有半角 | 与全角 ｜ 变体，V4 系标签名可能带空格）：
+ *   <|DSML|function_calls> <|DSML|invoke name="search_course_segments">
+ *   <|DSML|parameter name="query">失眠</|DSML|parameter> </|DSML|function_calls>
+ * 也有 <｜tool▁calls▁begin｜> 这类特殊 token 风格。
+ * 策略：正文原样透传，工具块整段剥离（不再整次丢弃重试——泄漏输出里
+ * 往往夹着可用的回答正文）；跨 chunk 的半截标签用 pending 缓冲衔接。
+ */
+const DSML_START = /<(?:[｜|\s]{0,3}(?:DSML|tool[▁_]?calls|function[▁_]?calls|invoke\b)|[^>\n]{0,24}DSML)/i;
+// 闭合形态两种：斜杠式 </|DSML|...> </|DSML｜invoke>；特殊 token 式 <｜tool▁call▁end｜>
+const DSML_END = /(?:<[｜|\s]*\/[^>]*(?:call|invoke|DSML)[^>]*>)|(?:<[｜|\s]*[^>]*[▁_]end[｜|\s]*>)/i;
+const DSML_QUERY_RE = /parameter name="query"[^>]*>([^<]+)</g;
+
+export class DsmlStreamFilter {
+  private pending = ''; // TEXT 模式下疑似半截标签的尾部缓冲
+  private inBlock = false; // 正处于 DSML 工具块内
+  private block = ''; // 块内全量累积（闭合标签可能被 chunk 边界切开）
+  queries: string[] = []; // 从泄漏块里捕获的检索词（诊断用）
+  stripped = 0; // 剥离掉的工具块/碎片数
+
+  feed(text: string): string {
+    let buf = this.pending + text;
+    this.pending = '';
+    let out = '';
+    for (let guard = 0; guard < 50 && buf; guard++) {
+      if (this.inBlock) {
+        this.block += buf;
+        buf = '';
+        if (this.block.length > 8000) this.block = ''; // 异常长块：弃内容防膨胀（仍留在块内继续丢）
+        const m = this.block.match(DSML_END);
+        if (m && m.index !== undefined) {
+          // 多带一个字符（闭合标签的 '<'）：query 值正则以 '<' 终止，缺它匹配不上
+          this.collectQueries(this.block.slice(0, m.index + 1));
+          buf = this.block.slice(m.index + m[0].length); // 块后可能还有正文
+          this.block = '';
+          this.inBlock = false;
+        }
+        // 未闭合：全量保留在 block 里等后续 chunk（无需 pending，block 不滑窗）
+      } else {
+        const m = buf.match(DSML_START);
+        if (m && m.index !== undefined) {
+          out += buf.slice(0, m.index);
+          this.block = buf.slice(m.index);
+          this.inBlock = true;
+          this.stripped += 1;
+          buf = '';
+          // 起始标记可能同 chunk 内就闭合（如误入的游离闭合标签）
+          const em2 = this.block.match(DSML_END);
+          if (em2 && em2.index !== undefined) {
+            this.collectQueries(this.block.slice(0, em2.index + 1));
+            buf = this.block.slice(em2.index + em2[0].length);
+            this.block = '';
+            this.inBlock = false;
+          }
+          continue;
+        }
+        // 无完整起始标记：末尾悬空的 '<' 若像半截标记则缓冲（下个 chunk 定夺）
+        const lt = buf.lastIndexOf('<');
+        if (lt >= 0 && !buf.slice(lt).includes('>') && buf.length - lt <= 40) {
+          out += buf.slice(0, lt);
+          this.pending = buf.slice(lt);
+        } else {
+          out += buf;
+        }
+        buf = '';
+      }
+    }
+    return out;
+  }
+
+  /** 流结束：TEXT 模式吐回缓冲；SKIP 模式块未闭合，直接丢弃 */
+  end(): string {
+    const rest = this.inBlock ? '' : this.pending;
+    this.pending = '';
+    this.block = '';
+    this.inBlock = false;
+    return rest;
+  }
+
+  private collectQueries(s: string): void {
+    for (const m of s.matchAll(DSML_QUERY_RE)) {
+      const v = m[1]?.trim();
+      if (v) this.queries.push(v);
+    }
+  }
+}
+
+/**
  * Agent 主流程：
  *   1-2 轮：带检索工具的模型调用（模型自主决定搜什么；结果喂回）
  *   第 3 轮：无工具强制综合，流式输出（这轮的回答就是给用户看的内容）
@@ -267,12 +355,13 @@ export async function runAgent(
           ...msgs,
           new HumanMessage(
             `基于以上课程段落生成最终回答，严格遵守：
-1. 结构：分点列出几种可能的情况/类型 → 每种附典型伴随症状与对应治法（课程里的药方要具体写出药名与配伍）→ 结尾一行「参考课程段落」
-2. 课程段落与问题直接相关的内容必须是回答主体；你的通用医学知识只作补充，且补充处标注「（通用补充）」
-3. 相关性判断：段落的主题必须真正回答问题才单列为一种情况；仅字面沾边（如别的病里顺带提到某部位、或单味药提了一句）的不单列，最多并入补充说明，宁缺毋滥
-4. 去重：同一段落的依据（相同 [编号]）合并到一节里讲完，不许拆成多节重复展开
-5. 引用格式：引用课程内容处紧跟 [编号]（方括号数字，如 [2]），禁止写裸数字或不标；结尾一行「参考课程段落：」按引用顺序列出 [编号] 时间区间（课程名），只列正文实际引用过的编号
-6. 简体中文，Markdown 分节`
+1. 检索阶段已结束，系统不会再执行任何检索：禁止再发起或伪造任何工具调用/检索语法（如 <|DSML|...>、<invoke>、<parameter> 等），这类内容会被整体丢弃；直接输出给用户看的最终回答
+2. 结构：分点列出几种可能的情况/类型 → 每种附典型伴随症状与对应治法（课程里的药方要具体写出药名与配伍）→ 结尾一行「参考课程段落」
+3. 课程段落与问题直接相关的内容必须是回答主体；你的通用医学知识只作补充，且补充处标注「（通用补充）」
+4. 相关性判断：段落的主题必须真正回答问题才单列为一种情况；仅字面沾边（如别的病里顺带提到某部位、或单味药提了一句）的不单列，最多并入补充说明，宁缺毋滥
+5. 去重：同一段落的依据（相同 [编号]）合并到一节里讲完，不许拆成多节重复展开
+6. 引用格式：引用课程内容处紧跟 [编号]（方括号数字，如 [2]），禁止写裸数字或不标；结尾一行「参考课程段落：」按引用顺序列出 [编号] 时间区间（课程名），只列正文实际引用过的编号
+7. 简体中文，Markdown 分节`
           ),
         ]
       : msgs;
@@ -284,32 +373,41 @@ export async function runAgent(
           : [
               ...synthMsgs,
               new HumanMessage(
-                '（系统提示：上一轮你输出了内部检索语法而不是回答。不要再调用任何工具或检索，直接基于已有佐证输出最终回答。）'
+                '（系统提示：上一轮你输出了内部检索语法而不是回答。不要再调用任何工具或输出任何检索/DSML 语法，直接基于已有佐证输出最终回答。）'
               ),
             ];
       answer = '';
       deltas = 0; // 每次尝试独立计数：前端 reset 后旧 delta 不再算数
+      const filter = new DsmlStreamFilter();
       const stream = await model.stream(synthInput, { timeout: 60_000 });
-      let leaked = false;
       for await (const chunk of stream) {
         const type = typeof chunk.getType === 'function' ? chunk.getType() : '';
         if (type !== 'ai') continue;
         const text = typeof chunk.content === 'string' ? chunk.content : '';
         if (!text) continue;
         // 综合轮未绑工具，DeepSeek 偶发把 DSML 工具语法当纯文本吐出——
-        // 不能转发给用户；检测到则丢弃本次输出并带强提示重试一次
-        if (text.includes('DSML') || text.includes('<｜｜') || text.includes('｜｜DSML')) {
-          leaked = true;
-          break;
-        }
-        answer += text;
-        em.delta(text);
+        // 逐 chunk 剥离工具块、正文照常流式（不再因泄漏整次丢弃）
+        const cleaned = filter.feed(text);
+        if (!cleaned) continue;
+        answer += cleaned;
+        em.delta(cleaned);
         deltas += 1;
       }
-      if (!leaked && answer.trim()) break;
-      // 重试：reset 清掉前端已收的半截内容（可能已流出部分 delta），防重复
+      const tail = filter.end();
+      if (tail) {
+        answer += tail;
+        em.delta(tail);
+        deltas += 1;
+      }
+      if (filter.stripped) {
+        em.trace(
+          `🧹 已剥离输出中的 ${filter.stripped} 处工具语法${filter.queries.length ? `（泄漏的检索词：${filter.queries.join('、')}）` : ''}`
+        );
+      }
+      // 剥离后剩余正文太短（几乎全是工具语法/空）→ 重试；够长则接受
+      if (answer.replace(/\s/g, '').length >= 80) break;
       if (attempt === 1) {
-        em.trace('⚠️ 综合轮输出泄漏工具语法，重试中');
+        em.trace('⚠️ 综合轮输出几乎全是工具语法，重试中');
         em.reset();
       }
     }
