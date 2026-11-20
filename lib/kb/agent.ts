@@ -233,6 +233,8 @@ export async function runAgent(
     apiKey: process.env.ANTHROPIC_API_KEY,
     ...(process.env.ANTHROPIC_BASE_URL ? { anthropicApiUrl: process.env.ANTHROPIC_BASE_URL } : {}),
     maxRetries: 0,
+    maxTokens: 8192, // deepseek-flash 现为思维链模型：先输出 thinking 块再出正文，
+    // 1024/2048 的预算全被思考吃掉 → 正文零输出（stop_reason=max_tokens）或半截截断
     clientOptions: { timeout: 45_000 },
   });
 
@@ -257,6 +259,8 @@ export async function runAgent(
   // 下一轮模型能看到之前所有轮的检索结果（盲轮会让第二轮乱漂）；
   // 且 ToolMessage 前必须有对应 assistant 消息，否则 Anthropic 协议直接拒绝
   const msgs: BaseMessage[] = toMessages(history, q);
+  // 综合轮重建上下文的基准线：history + 问题，之后追加的工具轮消息全部排除
+  const baseCount = msgs.length;
   for (let round = 1; round <= MAX_SEARCH_ROUNDS; round++) {
     let res: AIMessage;
     try {
@@ -346,15 +350,23 @@ export async function runAgent(
   // ── 综合轮（无工具，流式逐字） ──
   const ctxTitles = collectContextSegments(history).map((s) => s.title);
   let deltas = 0;
+  let synthFail = ''; // 失败原因：'leak' 工具语法泄漏 / 'error:...' 异常 / 'empty' 空输出
   try {
-    // 综合轮必须复用含工具结果的完整消息列表——重建消息会把佐证丢光，
-    // 模型只能凭自身知识写答案（菖蒲治鼻窦炎被无视就是这个原因）
-    // 收尾指令：输出结构与引用规则在此硬化（埋在系统提示里模型会无视）
+    // 关键设计：综合轮不复用含 assistant tool_calls 的消息列表——DeepSeek 看到
+    // 历史里的工具调用结构后，综合轮会模仿着继续输出 DSML 工具语法（实测连续
+    // 两轮泄漏、重试救不回来）。改为从佐证池重建纯文本上下文：证据一段不丢，
+    // 但模型看不到任何工具结构，无从模仿。
+    // （旧方案直接复用 msgs 是因为佐证在 ToolMessage 里；现在佐证池本就持有全文）
+    const baseMsgs = msgs.slice(0, baseCount);
     const synthMsgs = pool.length
       ? [
-          ...msgs,
+          ...baseMsgs,
           new HumanMessage(
-            `基于以上课程段落生成最终回答，严格遵守：
+            `以下是刚才检索到的课程段落（编号稳定，共 ${pool.length} 段，引用时直接用编号）：\n\n` +
+              pool
+                .map((s) => `[${s.n}] 《${s.title}》（${s.course}，${s.time_range}）\n${s.text}`)
+                .join('\n\n') +
+              `\n\n基于以上课程段落生成最终回答，严格遵守：
 1. 检索阶段已结束，系统不会再执行任何检索：禁止再发起或伪造任何工具调用/检索语法（如 <|DSML|...>、<invoke>、<parameter> 等），这类内容会被整体丢弃；直接输出给用户看的最终回答
 2. 结构：分点列出几种可能的情况/类型 → 每种附典型伴随症状与对应治法（课程里的药方要具体写出药名与配伍）→ 结尾一行「参考课程段落」
 3. 课程段落与问题直接相关的内容必须是回答主体；你的通用医学知识只作补充，且补充处标注「（通用补充）」
@@ -364,7 +376,7 @@ export async function runAgent(
 7. 简体中文，Markdown 分节`
           ),
         ]
-      : msgs;
+      : baseMsgs;
     let answer = '';
     for (let attempt = 1; attempt <= 2; attempt++) {
       const synthInput =
@@ -379,19 +391,28 @@ export async function runAgent(
       answer = '';
       deltas = 0; // 每次尝试独立计数：前端 reset 后旧 delta 不再算数
       const filter = new DsmlStreamFilter();
-      const stream = await model.stream(synthInput, { timeout: 60_000 });
-      for await (const chunk of stream) {
-        const type = typeof chunk.getType === 'function' ? chunk.getType() : '';
-        if (type !== 'ai') continue;
-        const text = typeof chunk.content === 'string' ? chunk.content : '';
-        if (!text) continue;
-        // 综合轮未绑工具，DeepSeek 偶发把 DSML 工具语法当纯文本吐出——
-        // 逐 chunk 剥离工具块、正文照常流式（不再因泄漏整次丢弃）
-        const cleaned = filter.feed(text);
-        if (!cleaned) continue;
-        answer += cleaned;
-        em.delta(cleaned);
-        deltas += 1;
+      let lastFr: string | undefined; // 最后一个 chunk 的 finish_reason（有值且非 stop = 被截断）
+      let broken = false; // 流中途异常/断开
+      try {
+        const stream = await model.stream(synthInput, { timeout: 60_000 });
+        for await (const chunk of stream) {
+          const type = typeof chunk.getType === 'function' ? chunk.getType() : '';
+          if (type !== 'ai') continue;
+          const fr = (chunk as { response_metadata?: { finish_reason?: string } }).response_metadata?.finish_reason;
+          if (fr) lastFr = fr;
+          const text = typeof chunk.content === 'string' ? chunk.content : '';
+          if (!text) continue;
+          // 综合轮未绑工具，DeepSeek 偶发把 DSML 工具语法当纯文本吐出——
+          // 逐 chunk 剥离工具块、正文照常流式（不再因泄漏整次丢弃）
+          const cleaned = filter.feed(text);
+          if (!cleaned) continue;
+          answer += cleaned;
+          em.delta(cleaned);
+          deltas += 1;
+        }
+      } catch (e) {
+        broken = true;
+        em.trace(`⚠️ 综合轮流中断：${((e as Error).message ?? '').slice(0, 80)}`);
       }
       const tail = filter.end();
       if (tail) {
@@ -404,14 +425,27 @@ export async function runAgent(
           `🧹 已剥离输出中的 ${filter.stripped} 处工具语法${filter.queries.length ? `（泄漏的检索词：${filter.queries.join('、')}）` : ''}`
         );
       }
-      // 剥离后剩余正文太短（几乎全是工具语法/空）→ 重试；够长则接受
-      if (answer.replace(/\s/g, '').length >= 80) break;
+      const tooShort = answer.replace(/\s/g, '').length < 80; // 几乎全是工具语法/空
+      const truncated = broken || (lastFr !== undefined && lastFr !== 'stop');
+      if (!tooShort && !truncated) {
+        synthFail = '';
+        break;
+      }
+      if (attempt === 2 && !tooShort && truncated) {
+        // 第二次也中断：保留已收到的部分，明示可能不完整（总比倾倒原文好）
+        em.note('回答流中途断开，以上内容可能不完整。');
+        synthFail = '';
+        break;
+      }
+      synthFail = filter.stripped ? 'leak' : broken ? 'error:stream' : truncated ? 'truncated' : 'empty';
       if (attempt === 1) {
-        em.trace('⚠️ 综合轮输出几乎全是工具语法，重试中');
+        em.trace(tooShort ? '⚠️ 综合轮输出几乎全是工具语法，重试中' : '⚠️ 综合轮输出中断/截断，重试中');
         em.reset();
       }
     }
-  } catch {
+  } catch (e) {
+    synthFail = `error:${(e as Error).message?.slice(0, 120) ?? 'unknown'}`;
+    em.trace(`⚠️ 综合轮调用失败：${synthFail.slice(6)}`);
     aiAvailable = false;
   }
 
@@ -430,19 +464,28 @@ export async function runAgent(
   em.route(decided);
 
   if (deltas === 0) {
-    // 综合轮没吐出文本（网络中断）→ 程序化兜底
+    // 综合轮没吐出文本 → 程序化兜底（按真实原因标注，别一律赖网络）
     aiAvailable = false;
+    const failWhy = synthFail.startsWith('leak')
+      ? 'AI 综合输出异常（模型持续输出工具语法）'
+      : synthFail.startsWith('error')
+        ? `AI 综合调用失败（${synthFail.slice(6, 60)}）`
+        : synthFail === 'truncated'
+          ? 'AI 综合回答被截断（输出预算不足）'
+          : synthFail === 'empty'
+            ? 'AI 综合返回空内容（模型异常）'
+            : 'AI 综合暂不可用（网络）';
     if (pool.length) {
-      em.note('AI 综合暂不可用（网络），以下为命中的段落原文，可点引用或回放查看视频。');
+      em.note(`${failWhy}，以下为命中的段落原文，可点引用或回放查看视频。`);
       em.delta(pool.map((s) => `【${s.n}】《${s.title}》（${s.course} ${s.time_range}）\n${s.text}`).join('\n\n'));
     } else if (decided.decision === 'context') {
       const ctx = collectContextSegments(history);
-      em.note('AI 综合暂不可用（网络），以下为上下文段落原文。');
+      em.note(`${failWhy}，以下为上下文段落原文。`);
       em.delta(ctx.map((s, i) => `【${i + 1}】《${s.title}》（${s.course} ${s.time_range}）\n${s.text}`).join('\n\n'));
       em.segments(ctx);
       return;
     } else {
-      em.note('AI 暂不可用（网络）。');
+      em.note(`${failWhy}。`);
       em.delta(NOHIT_FALLBACK);
     }
   } else if (pool.length === 0 && !aiAvailable) {
