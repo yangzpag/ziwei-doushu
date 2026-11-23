@@ -1,0 +1,742 @@
+{
+ "01-shanghan": {
+  "1": {
+   "bvid": "BV17P84z8EPS",
+   "offsetSec": -3,
+   "from": "old-ep1",
+   "n": 86
+  },
+  "2": {
+   "bvid": "BV15M84zoE97",
+   "offsetSec": -3,
+   "from": "old-ep2",
+   "n": 82
+  },
+  "3": {
+   "bvid": "BV16F84zAEhX",
+   "offsetSec": -3,
+   "from": "old-ep3",
+   "n": 171
+  },
+  "4": {
+   "bvid": "BV1vb8xzWETw",
+   "offsetSec": -3,
+   "from": "old-ep4",
+   "n": 141
+  },
+  "5": {
+   "bvid": "BV1R88xzXE3q",
+   "offsetSec": -2,
+   "from": "old-ep5",
+   "n": 107
+  },
+  "6": {
+   "bvid": "BV1Bn8xzfEf4",
+   "offsetSec": -2,
+   "from": "old-ep6",
+   "n": 178
+  },
+  "7": {
+   "bvid": "BV1qW8xzoENj",
+   "offsetSec": -2,
+   "from": "old-ep7",
+   "n": 156
+  },
+  "8": {
+   "bvid": "BV1my8xzVEh8",
+   "offsetSec": -2,
+   "from": "old-ep8",
+   "n": 163
+  },
+  "9": {
+   "bvid": "BV1Qv8xzJEYW",
+   "offsetSec": -2,
+   "from": "old-ep9",
+   "n": 156
+  },
+  "10": {
+   "bvid": "BV1TA8xzGE9T",
+   "offsetSec": -2,
+   "from": "old-ep10",
+   "n": 114
+  },
+  "11": {
+   "bvid": "BV12K8xzuEPF",
+   "offsetSec": -3,
+   "from": "old-ep11",
+   "n": 162
+  },
+  "12": {
+   "bvid": "BV1uZ8sz1EoM",
+   "offsetSec": -2,
+   "from": "old-ep12",
+   "n": 178
+  },
+  "13": {
+   "bvid": "BV1bc8xzCELd",
+   "offsetSec": -2,
+   "from": "old-ep13",
+   "n": 172
+  },
+  "14": {
+   "bvid": "BV1UF8xzVEGD",
+   "offsetSec": -2,
+   "from": "old-ep14",
+   "n": 75
+  },
+  "15": {
+   "bvid": "BV1rL8xzAEWA",
+   "offsetSec": -3,
+   "from": "old-ep15",
+   "n": 156
+  }
+ },
+ "02-jinkui": {
+  "1": {
+   "bvid": "BV15P8ezCEpV",
+   "offsetSec": -2,
+   "from": "old-ep1",
+   "n": 141
+  },
+  "2": {
+   "bvid": "BV1fR8YzUEx1",
+   "offsetSec": -2,
+   "from": "old-ep2",
+   "n": 129
+  },
+  "3": {
+   "bvid": "BV1dF8ezLEU7",
+   "offsetSec": -3,
+   "from": "old-ep3",
+   "n": 83
+  },
+  "4": {
+   "bvid": "BV1jZ8YzmEZQ",
+   "offsetSec": -2,
+   "from": "old-ep4",
+   "n": 128
+  },
+  "5": {
+   "bvid": "BV1ok8izsE1u",
+   "offsetSec": -2,
+   "from": "old-ep5",
+   "n": 98
+  },
+  "6": {
+   "bvid": "",
+   "offsetSec": 0,
+   "from": "no-old-coverage",
+   "n": 0
+  },
+  "7": {
+   "bvid": "BV16i8izbEfL",
+   "offsetSec": -3,
+   "from": "old-ep7",
+   "n": 132
+  },
+  "8": {
+   "bvid": "BV13R8iz7EaY",
+   "offsetSec": -2,
+   "from": "old-ep8",
+   "n": 106
+  },
+  "9": {
+   "bvid": "BV1aX8izmEoj",
+   "offsetSec": -3,
+   "from": "old-ep9",
+   "n": 94
+  },
+  "10": {
+   "bvid": "BV13d8iz2E5G",
+   "offsetSec": -2,
+   "from": "old-ep10",
+   "n": 112
+  },
+  "11": {
+   "bvid": "BV1v28izQESe",
+   "offsetSec": -2,
+   "from": "old-ep11",
+   "n": 113
+  },
+  "12": {
+   "bvid": "BV1eS8izSEug",
+   "offsetSec": -3,
+   "from": "old-ep12",
+   "n": 115
+  },
+  "13": {
+   "bvid": "BV1dN8izSEP3",
+   "offsetSec": -2,
+   "from": "old-ep13",
+   "n": 100
+  },
+  "14": {
+   "bvid": "BV19M8izmECk",
+   "offsetSec": -3,
+   "from": "old-ep14",
+   "n": 91
+  },
+  "15": {
+   "bvid": "BV1Zf8vz9EXb",
+   "offsetSec": -3,
+   "from": "old-ep15",
+   "n": 121
+  },
+  "16": {
+   "bvid": "BV1ow8izQEFu",
+   "offsetSec": -2,
+   "from": "old-ep16",
+   "n": 91
+  },
+  "17": {
+   "bvid": "BV1Zc8izpEg6",
+   "offsetSec": -2,
+   "from": "old-ep17",
+   "n": 74
+  },
+  "18": {
+   "bvid": "BV1R48vz2EFR",
+   "offsetSec": -3,
+   "from": "old-ep18",
+   "n": 72
+  },
+  "19": {
+   "bvid": "BV13a8vzVEXA",
+   "offsetSec": -2,
+   "from": "old-ep19",
+   "n": 66
+  },
+  "20": {
+   "bvid": "BV1jp8vzJE3v",
+   "offsetSec": -3,
+   "from": "old-ep20",
+   "n": 57
+  },
+  "21": {
+   "bvid": "BV1qn8vzDELx",
+   "offsetSec": -3,
+   "from": "old-ep21",
+   "n": 62
+  }
+ },
+ "03-bencao": {
+  "1": {
+   "bvid": "BV13ybZz6Eev",
+   "offsetSec": 0.2,
+   "from": "old-ep1",
+   "n": 170
+  },
+  "2": {
+   "bvid": "BV1qebZzjEzM",
+   "offsetSec": 0.3,
+   "from": "old-ep2",
+   "n": 179
+  },
+  "3": {
+   "bvid": "BV1778czREr5",
+   "offsetSec": 0.4,
+   "from": "old-ep3",
+   "n": 176
+  },
+  "4": {
+   "bvid": "BV1Ui8czkECk",
+   "offsetSec": 0.2,
+   "from": "old-ep4",
+   "n": 191
+  },
+  "5": {
+   "bvid": "BV1Yx8czJE6e",
+   "offsetSec": 0.2,
+   "from": "old-ep5",
+   "n": 160
+  },
+  "6": {
+   "bvid": "BV1sP8czeEWu",
+   "offsetSec": 0.2,
+   "from": "old-ep6",
+   "n": 175
+  },
+  "7": {
+   "bvid": "",
+   "offsetSec": 0,
+   "from": "no-old-coverage",
+   "n": 0
+  },
+  "8": {
+   "bvid": "BV1YU8wzpEaJ",
+   "offsetSec": 0.2,
+   "from": "old-ep7",
+   "n": 154
+  },
+  "9": {
+   "bvid": "",
+   "offsetSec": 0,
+   "from": "no-old-coverage",
+   "n": 0
+  },
+  "10": {
+   "bvid": "BV1Mj8wzLEfm",
+   "offsetSec": 0.1,
+   "from": "old-ep8",
+   "n": 135
+  },
+  "11": {
+   "bvid": "BV1u78wzyEjg",
+   "offsetSec": 1,
+   "from": "old-ep9",
+   "n": 138
+  },
+  "12": {
+   "bvid": "BV1Am8czNEKo",
+   "offsetSec": 1,
+   "from": "old-ep10",
+   "n": 69
+  },
+  "13": {
+   "bvid": "BV1Kz8cz6E6e",
+   "offsetSec": 1,
+   "from": "old-ep11",
+   "n": 119
+  },
+  "14": {
+   "bvid": "BV1Tr8czuEws",
+   "offsetSec": 1,
+   "from": "old-ep12",
+   "n": 90
+  },
+  "15": {
+   "bvid": "BV1oc8wzsEao",
+   "offsetSec": 1,
+   "from": "old-ep13",
+   "n": 142
+  },
+  "16": {
+   "bvid": "BV1zR8cz8Evp",
+   "offsetSec": 1,
+   "from": "old-ep14",
+   "n": 127
+  }
+ },
+ "04-neijing": {
+  "1": {
+   "bvid": "BV1HH8TzjExu",
+   "offsetSec": 1,
+   "from": "old-ep1",
+   "n": 189
+  },
+  "2": {
+   "bvid": "BV1G68TzPEMC",
+   "offsetSec": -2,
+   "from": "old-ep2",
+   "n": 177
+  },
+  "3": {
+   "bvid": "BV15v8TzqEjV",
+   "offsetSec": -2,
+   "from": "old-ep3",
+   "n": 190
+  },
+  "4": {
+   "bvid": "BV1hA8TzbE5D",
+   "offsetSec": -2,
+   "from": "old-ep4",
+   "n": 192
+  },
+  "5": {
+   "bvid": "BV1Vo8KzeEc4",
+   "offsetSec": -2,
+   "from": "old-ep5",
+   "n": 208
+  },
+  "6": {
+   "bvid": "BV1aF8TzhE3D",
+   "offsetSec": -2,
+   "from": "old-ep6",
+   "n": 200
+  },
+  "7": {
+   "bvid": "BV1HJ8TzmE7e",
+   "offsetSec": -2,
+   "from": "old-ep7",
+   "n": 194
+  },
+  "8": {
+   "bvid": "BV14u8TzsEjK",
+   "offsetSec": -3,
+   "from": "old-ep8",
+   "n": 195
+  },
+  "9": {
+   "bvid": "BV11a8KzSETG",
+   "offsetSec": -2,
+   "from": "old-ep9",
+   "n": 200
+  },
+  "10": {
+   "bvid": "BV1Rd8KzPETL",
+   "offsetSec": -2.6,
+   "from": "old-ep10",
+   "n": 183
+  },
+  "11": {
+   "bvid": "BV1Yr8uz3EzE",
+   "offsetSec": -3,
+   "from": "old-ep11",
+   "n": 204
+  },
+  "12": {
+   "bvid": "BV1tg8uzaEBa",
+   "offsetSec": -3,
+   "from": "old-ep12",
+   "n": 196
+  },
+  "13": {
+   "bvid": "BV1CJ8uzxEdw",
+   "offsetSec": -3,
+   "from": "old-ep13",
+   "n": 193
+  },
+  "14": {
+   "bvid": "BV1pp8uzWEwY",
+   "offsetSec": -3,
+   "from": "old-ep14",
+   "n": 209
+  },
+  "15": {
+   "bvid": "BV1tG8uzcE4d",
+   "offsetSec": -2,
+   "from": "old-ep15",
+   "n": 204
+  },
+  "16": {
+   "bvid": "BV1EU8MzmEr9",
+   "offsetSec": -2,
+   "from": "old-ep16",
+   "n": 197
+  },
+  "17": {
+   "bvid": "BV1ZQ8MzyErc",
+   "offsetSec": -2,
+   "from": "old-ep17",
+   "n": 333
+  },
+  "18": {
+   "bvid": "BV1ZD8MzLE8n",
+   "offsetSec": -2,
+   "from": "old-ep18",
+   "n": 11
+  },
+  "19": {
+   "bvid": "BV1Rj8MzBEjf",
+   "offsetSec": -3,
+   "from": "old-ep19",
+   "n": 297
+  }
+ },
+ "05-zhongjing": {
+  "1": {
+   "bvid": "BV1ZSnxzqEVX",
+   "offsetSec": -4.7,
+   "from": "old-ep1",
+   "n": 182
+  },
+  "2": {
+   "bvid": "BV1jQnxzKEGv",
+   "offsetSec": -8.2,
+   "from": "old-ep2",
+   "n": 93
+  },
+  "3": {
+   "bvid": "BV1v3nxzYEqa",
+   "offsetSec": -8.1,
+   "from": "old-ep3",
+   "n": 179
+  },
+  "4": {
+   "bvid": "BV195nxzhEmt",
+   "offsetSec": -8.2,
+   "from": "old-ep4",
+   "n": 128
+  },
+  "5": {
+   "bvid": "",
+   "offsetSec": 0,
+   "from": "no-old-coverage",
+   "n": 0
+  },
+  "6": {
+   "bvid": "",
+   "offsetSec": 0,
+   "from": "no-old-coverage",
+   "n": 0
+  }
+ },
+ "06-zhenjiu": {
+  "1": {
+   "bvid": "BV1at421h7x5",
+   "offsetSec": 2,
+   "from": "old-ep1",
+   "n": 15
+  },
+  "2": {
+   "bvid": "BV1gj421Q7Zb",
+   "offsetSec": -2,
+   "from": "old-ep2",
+   "n": 42
+  },
+  "3": {
+   "bvid": "BV1JA4m137mX",
+   "offsetSec": -3,
+   "from": "old-ep3",
+   "n": 63
+  },
+  "4": {
+   "bvid": "BV1cr421s79R",
+   "offsetSec": -3,
+   "from": "old-ep4",
+   "n": 38
+  },
+  "5": {
+   "bvid": "BV1ty421z7Xg",
+   "offsetSec": -3,
+   "from": "old-ep5",
+   "n": 82
+  },
+  "6": {
+   "bvid": "BV1ix4y1k767",
+   "offsetSec": -3,
+   "from": "old-ep6",
+   "n": 88
+  },
+  "7": {
+   "bvid": "BV1vS421N7tC",
+   "offsetSec": -3,
+   "from": "old-ep7",
+   "n": 84
+  },
+  "8": {
+   "bvid": "BV16z42197eH",
+   "offsetSec": -3,
+   "from": "old-ep8",
+   "n": 115
+  },
+  "9": {
+   "bvid": "BV19i421o7J8",
+   "offsetSec": -2,
+   "from": "old-ep9",
+   "n": 105
+  },
+  "10": {
+   "bvid": "BV1mS421A7WE",
+   "offsetSec": -2,
+   "from": "old-ep10",
+   "n": 59
+  },
+  "11": {
+   "bvid": "BV1hv421r7Xh",
+   "offsetSec": -3,
+   "from": "old-ep11",
+   "n": 108
+  },
+  "12": {
+   "bvid": "BV16t421b7CK",
+   "offsetSec": -3,
+   "from": "old-ep12",
+   "n": 76
+  },
+  "13": {
+   "bvid": "BV1sx421f7kp",
+   "offsetSec": -2,
+   "from": "old-ep13",
+   "n": 91
+  },
+  "14": {
+   "bvid": "BV1dH4y177TG",
+   "offsetSec": 0,
+   "from": "old-ep14",
+   "n": 68,
+   "offsetSkipped": 257
+  },
+  "15": {
+   "bvid": "BV1eK421t7xP",
+   "offsetSec": 0,
+   "from": "old-ep15",
+   "n": 63,
+   "offsetSkipped": 209
+  },
+  "16": {
+   "bvid": "BV1hz421X7fs",
+   "offsetSec": 1,
+   "from": "old-ep16",
+   "n": 31
+  },
+  "17": {
+   "bvid": "BV1GC411s7Tw",
+   "offsetSec": -3,
+   "from": "old-ep17",
+   "n": 66
+  },
+  "18": {
+   "bvid": "BV1oW421A7Ed",
+   "offsetSec": -3,
+   "from": "old-ep18",
+   "n": 92
+  },
+  "19": {
+   "bvid": "BV1St42147M7",
+   "offsetSec": -3,
+   "from": "old-ep19",
+   "n": 86
+  },
+  "20": {
+   "bvid": "BV1ev421r7SA",
+   "offsetSec": -3,
+   "from": "old-ep20",
+   "n": 69
+  },
+  "21": {
+   "bvid": "BV1HF4m157nz",
+   "offsetSec": -2,
+   "from": "old-ep21",
+   "n": 75
+  },
+  "22": {
+   "bvid": "BV1J1421f7J5",
+   "offsetSec": -3,
+   "from": "old-ep22",
+   "n": 149
+  },
+  "23": {
+   "bvid": "BV1F2421M793",
+   "offsetSec": -3,
+   "from": "old-ep23",
+   "n": 75
+  },
+  "24": {
+   "bvid": "BV1oy421q7Tr",
+   "offsetSec": -3,
+   "from": "old-ep24",
+   "n": 117
+  },
+  "25": {
+   "bvid": "BV1hW421w7sd",
+   "offsetSec": -3,
+   "from": "old-ep25",
+   "n": 90
+  },
+  "26": {
+   "bvid": "BV12x42127xY",
+   "offsetSec": -3,
+   "from": "old-ep26",
+   "n": 104
+  },
+  "27": {
+   "bvid": "BV1wH4y1j7GD",
+   "offsetSec": -3,
+   "from": "old-ep27",
+   "n": 111
+  },
+  "28": {
+   "bvid": "BV1aJ4m1Y7vh",
+   "offsetSec": 0,
+   "from": "old-ep28",
+   "n": 113
+  },
+  "29": {
+   "bvid": "BV16u4m1373x",
+   "offsetSec": -3,
+   "from": "old-ep29",
+   "n": 111
+  },
+  "30": {
+   "bvid": "BV1Xt42157s7",
+   "offsetSec": -3,
+   "from": "old-ep30",
+   "n": 103
+  },
+  "31": {
+   "bvid": "BV1rH4y1j7GC",
+   "offsetSec": -3,
+   "from": "old-ep31",
+   "n": 112
+  },
+  "32": {
+   "bvid": "BV1xy421i7wN",
+   "offsetSec": -2,
+   "from": "old-ep32",
+   "n": 94
+  },
+  "33": {
+   "bvid": "BV1ni421Z7eV",
+   "offsetSec": -3,
+   "from": "old-ep33",
+   "n": 109
+  },
+  "34": {
+   "bvid": "BV1r2421K7xK",
+   "offsetSec": -3,
+   "from": "old-ep34",
+   "n": 107
+  },
+  "35": {
+   "bvid": "BV1Wr421W7AM",
+   "offsetSec": -2,
+   "from": "old-ep35",
+   "n": 122
+  },
+  "36": {
+   "bvid": "BV13S421w7YL",
+   "offsetSec": -3,
+   "from": "old-ep36",
+   "n": 116
+  },
+  "37": {
+   "bvid": "BV1XZ421h7Mj",
+   "offsetSec": -3,
+   "from": "old-ep37",
+   "n": 73
+  },
+  "38": {
+   "bvid": "BV1gJ4m1Y79f",
+   "offsetSec": -3,
+   "from": "old-ep38",
+   "n": 70
+  },
+  "39": {
+   "bvid": "BV1EK421t7f3",
+   "offsetSec": -3,
+   "from": "old-ep39",
+   "n": 80
+  },
+  "40": {
+   "bvid": "BV1Wj421Z7Ai",
+   "offsetSec": -3,
+   "from": "old-ep40",
+   "n": 93
+  },
+  "41": {
+   "bvid": "BV17D421E7rW",
+   "offsetSec": -3,
+   "from": "old-ep41",
+   "n": 71
+  },
+  "42": {
+   "bvid": "BV1mw4m1d7bt",
+   "offsetSec": -3,
+   "from": "old-ep42",
+   "n": 189
+  },
+  "43": {
+   "bvid": "BV1Vj421Z753",
+   "offsetSec": -2,
+   "from": "old-ep43",
+   "n": 76
+  },
+  "44": {
+   "bvid": "BV1Vi421o74v",
+   "offsetSec": -3,
+   "from": "old-ep44",
+   "n": 108
+  }
+ }
+}

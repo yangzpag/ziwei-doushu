@@ -317,3 +317,23 @@
 .wrap { max-width: 1120px; margin: 0 auto; padding: 0 32px; }
 .wrapWide { max-width: 1440px; margin: 0 auto; padding: 0 32px; }
 .v2body { background: var(--zw2-bg); color: var(--zw2-ink); font-size: 14px; line-height: 1.6; min-width: 1080px; min-height: 100vh; }
+
+/* ── 窄屏适配：320px 下顶栏元素换行收纳，保证"立即起盘"等按钮可达 ── */
+@media (max-width: 640px) {
+  .barInner {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 10px 0;
+    row-gap: 8px;
+    column-gap: 16px;
+  }
+  .tabs {
+    order: 3;
+    flex-basis: 100%;
+    overflow-x: auto;
+  }
+  .barRight {
+    margin-left: auto;
+    gap: 8px;
+  }
+}
