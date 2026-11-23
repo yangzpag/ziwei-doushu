@@ -235,7 +235,11 @@ export async function runAgent(
     maxRetries: 0,
     maxTokens: 8192, // deepseek-flash 现为思维链模型：先输出 thinking 块再出正文，
     // 1024/2048 的预算全被思考吃掉 → 正文零输出（stop_reason=max_tokens）或半截截断
-    clientOptions: { timeout: 45_000 },
+    // 关掉思维链：agent 每轮都要快进快出，思考链会把首包延迟拉到几十秒——
+    // 工具轮 30s 超时被打穿（Request timed out）、端点网关掐断长思考流（静默早停）。
+    // 实测 disabled 后首包 1-2s
+    thinking: { type: 'disabled' },
+    clientOptions: { timeout: 60_000 },
   });
 
   const searchDef = {
@@ -266,7 +270,7 @@ export async function runAgent(
     try {
       res = (await model
         .bindTools([searchDef])
-        .invoke(msgs, { timeout: 30_000 })) as AIMessage;
+        .invoke(msgs, { timeout: 60_000 })) as AIMessage;
     } catch (e) {
       aiAvailable = false;
       em.trace(`⚠️ agent 调用失败：${(e as Error).message.slice(0, 100)}`);
@@ -394,7 +398,7 @@ export async function runAgent(
       let lastFr: string | undefined; // 最后一个 chunk 的 finish_reason（有值且非 stop = 被截断）
       let broken = false; // 流中途异常/断开
       try {
-        const stream = await model.stream(synthInput, { timeout: 60_000 });
+        const stream = await model.stream(synthInput, { timeout: 180_000 });
         for await (const chunk of stream) {
           const type = typeof chunk.getType === 'function' ? chunk.getType() : '';
           if (type !== 'ai') continue;
@@ -427,17 +431,19 @@ export async function runAgent(
       }
       const tooShort = answer.replace(/\s/g, '').length < 80; // 几乎全是工具语法/空
       const truncated = broken || (lastFr !== undefined && lastFr !== 'stop');
-      if (!tooShort && !truncated) {
+      // 端点网关会掐断长流且不发错误帧：佐证充足却只流出极短内容 = 静默早停
+      const suspicious = !truncated && pool.length >= 4 && answer.replace(/\s/g, '').length < 300;
+      if (!tooShort && !truncated && !suspicious) {
         synthFail = '';
         break;
       }
-      if (attempt === 2 && !tooShort && truncated) {
-        // 第二次也中断：保留已收到的部分，明示可能不完整（总比倾倒原文好）
+      if (attempt === 2 && !tooShort && (truncated || suspicious)) {
+        // 第二次也中断/早停：保留已收到的部分，明示可能不完整（总比倾倒原文好）
         em.note('回答流中途断开，以上内容可能不完整。');
         synthFail = '';
         break;
       }
-      synthFail = filter.stripped ? 'leak' : broken ? 'error:stream' : truncated ? 'truncated' : 'empty';
+      synthFail = filter.stripped ? 'leak' : broken ? 'error:stream' : truncated ? 'truncated' : suspicious ? 'truncated' : 'empty';
       if (attempt === 1) {
         em.trace(tooShort ? '⚠️ 综合轮输出几乎全是工具语法，重试中' : '⚠️ 综合轮输出中断/截断，重试中');
         em.reset();
